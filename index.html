@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>シナリオテキストメーカー | ココフォリア</title>
+<meta name="description" content="台本や描写の文章を貼ると、ココフォリアのシナリオテキストをまとめて作ります。台詞には話し手の立ち絵（表情の差分も）を付けられ、シナリオテキストから送るだけでメッセージボックスに立ち絵が出ます。">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="シナリオテキストメーカー">
+<meta property="og:title" content="シナリオテキストメーカー">
+<meta property="og:description" content="台本や描写の文章を貼るだけで、ココフォリアのシナリオテキストをまとめて作れます。台詞には立ち絵（表情の差分も）、描写には好きな画像を付けられます。ルームデータ（ZIP）を読み込むだけ。無料・登録不要。">
+<meta property="og:url" content="https://shiki365.github.io/scenario-text-maker/">
+<meta property="og:image" content="https://shiki365.github.io/scenario-text-maker/ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="シナリオテキストメーカー － 台本を貼るだけで、ココフォリアのシナリオテキストをまとめて作成">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #15161a; --panel: #1e1f26; --line: #303240; --line-soft: #282a36;
+    --fg: #e7e7ea; --muted: #9a9aa5; --accent: #6b70ff; --warn: #ffb86b;
+    --button: #575cf5; /* darker than --accent so white text passes 4.5:1 */
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font-family: "Yu Gothic UI", "Meiryo", system-ui, sans-serif; font-size: 13px; }
+  header { padding: 18px 24px 14px; border-bottom: 1px solid var(--line); }
+  h1 { margin: 0 0 4px; font-size: 17px; }
+  header p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+  main { display: grid; gap: 20px; padding: 20px 24px 40px;
+         grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) { header, main, footer { padding-left: 16px; padding-right: 16px; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px 16px 16px; }
+  h2 { margin: 14px 0 0; font-size: 13px; }
+  fieldset { border: 0; border-top: 1px solid var(--line-soft); margin: 14px 0 0; padding: 12px 0 0; min-width: 0; }
+  .panel > fieldset:first-child { border-top: 0; }
+  legend { padding: 0; color: var(--muted); font-size: 11px; letter-spacing: .08em; }
+  .row { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: center; margin-top: 10px; }
+  .row > label { color: var(--muted); }
+
+  select, input[type=text], input[type=url], textarea {
+    width: 100%; background: #14151b; color: var(--fg); font: inherit;
+    border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+  input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; vertical-align: -3px; }
+  select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px; }
+  .desc { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+  .desc b { color: var(--fg); }
+  .check { color: var(--fg); cursor: pointer; }
+
+  button { background: #2f3140; color: var(--fg); border: 1px solid #464a5e;
+           border-radius: 6px; padding: 7px 14px; font: inherit; cursor: pointer; }
+  button:hover { background: #3a3d4f; }
+  button.primary { background: var(--button); border-color: var(--button); color: #fff; font-weight: 700; }
+  button.primary:hover { background: #4a4fe0; }
+  button.small { padding: 4px 9px; font-size: 12px; }
+  button.danger:hover { background: #5a2f36; border-color: #8a4a55; }
+  button:disabled { opacity: .45; cursor: default; }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* speakers */
+  .speakers { display: grid; gap: 8px; margin-top: 10px; }
+  .speaker { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 10px;
+             border: 1px solid var(--line); border-radius: 8px; background: #191a21; }
+  .speaker .thumb { width: 64px; height: 84px; border-radius: 6px; background: #14151b; border: 1px dashed #3a3d4f;
+                    display: grid; place-items: center; overflow: hidden; color: var(--muted); font-size: 11px; text-align: center; }
+  .speaker .thumb img { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; }
+  .speaker .fields { display: grid; gap: 6px; min-width: 0; }
+  .speaker .fields label { display: grid; gap: 2px; color: var(--muted); font-size: 11px; }
+  .img-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .img-row select { flex: 1 1 8em; width: auto; min-width: 0; }
+  .speaker .thumb.over, .face .thumb.over { border-color: var(--accent); border-style: solid; }
+
+  /* image shelf */
+  .drop { margin-top: 10px; border: 1.5px dashed #464a5e; border-radius: 8px; padding: 18px 12px; text-align: center;
+          color: var(--muted); font-size: 12px; line-height: 1.7; cursor: pointer; }
+  .drop span { font-size: 11px; }
+  .drop:hover, .drop.over { border-color: var(--accent); color: var(--fg); background: #22243a; }
+  .drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 10px; }
+  .gallery .desc { grid-column: 1 / -1; margin: 0; }
+  .imgcell { display: grid; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: #191a21; min-width: 0; }
+  .imgcell img, .imgcell .noimg { width: 100%; height: 72px; object-fit: contain; border-radius: 4px;
+          background: repeating-conic-gradient(#1f2029 0% 25%, #16171d 0% 50%) 50% / 12px 12px; }
+  .imgcell .noimg { display: grid; place-items: center; color: var(--warn); font-size: 11px; }
+  .imgcell input[type=text] { padding: 2px 5px; font-size: 11px; }
+  .imgcell .info { color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .imgcell .info.warn { color: var(--warn); }
+  .imgcell button { justify-self: start; }
+  .speaker .img-note { color: var(--muted); font-size: 11px; }
+  .speaker .img-note.warn { color: var(--warn); }
+  .faces { display: grid; gap: 6px; margin-top: 4px; padding-top: 8px; border-top: 1px dashed var(--line); }
+  .face { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; align-items: center; }
+  .face .thumb { width: 40px; height: 52px; font-size: 10px; }
+  .faces > button { justify-self: start; }
+  .mode { display: grid; gap: 6px; margin-top: 10px; }
+  .mode label { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; align-items: start; padding: 8px 10px;
+                border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: #191a21; }
+  .mode label:has(input:checked) { border-color: var(--accent); background: #22243a; }
+  .mode input { accent-color: var(--accent); margin: 2px 0 0; }
+  .mode b { display: block; color: var(--fg); }
+  .mode span { color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+  /* script and results */
+  .stack { display: grid; gap: 14px; min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 10px; min-width: 0; }
+  .card > h2 { margin: 0; font-size: 13px; }
+  .card-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+  textarea#script { min-height: 220px; resize: vertical; line-height: 1.7; font-family: "BIZ UDGothic", "Yu Gothic UI", "Meiryo", monospace; }
+  .unknown { border: 1px solid #6b5230; background: #2a2218; border-radius: 8px; padding: 8px 10px; color: var(--warn); font-size: 12px; line-height: 1.8; }
+  .unknown button { margin: 2px 4px 2px 0; }
+
+  .stage { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); height: 300px;
+           background: radial-gradient(ellipse at 30% 20%, #6d7fa8, transparent 60%),
+                       radial-gradient(ellipse at 80% 90%, #a8735a, transparent 55%), #2d3348; }
+  .mbox { position: absolute; left: 12px; right: 12px; bottom: 12px; max-width: 560px; margin: 0 auto; }
+  .mbox .portrait { position: absolute; left: 8px; bottom: 100%; width: 150px; max-height: 210px; object-fit: contain; object-position: left bottom; }
+  .mbox .body { position: relative; background: rgba(22, 22, 22, .84); color: #f5f5f5; border-radius: 4px;
+                box-shadow: 0 3px 5px -1px rgba(0,0,0,.2), 0 6px 10px rgba(0,0,0,.14); }
+  .mbox .name { padding: 10px 16px 4px; font-size: 13px; font-weight: 500; min-height: 1.5em; }
+  .mbox .name.empty { color: #9a9aa5; font-weight: 400; }
+  .mbox .text { padding: 0 16px 12px; height: 64px; overflow: hidden; white-space: pre-wrap; line-height: 1.6; font-size: 13px; }
+
+  .table-wrap { max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: middle; }
+  th { white-space: nowrap; position: sticky; top: 0; background: #23242d; color: var(--muted); font-weight: 400; z-index: 1; }
+  td.num { color: var(--muted); font-variant-numeric: tabular-nums; width: 3.5em; }
+  td.pic { width: 40px; }
+  td.pic img { width: 28px; height: 36px; object-fit: contain; display: block; }
+  td.title { white-space: nowrap; max-width: 12em; overflow: hidden; text-overflow: ellipsis; }
+  td.text { white-space: pre-wrap; word-break: break-all; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: #252633; }
+  tbody tr[aria-selected=true] { background: #2c2e45; }
+  .badge { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 4px; font-size: 10px; vertical-align: 1px; }
+  .badge.unknown-b { border: 1px solid #8a6a3a; color: var(--warn); }
+  .badge.narr { border: 1px solid #4a4d60; color: var(--muted); }
+  .empty-list { color: var(--muted); padding: 14px; text-align: center; }
+
+  .summary { color: var(--muted); font-size: 12px; }
+  .badge.face { border: 1px solid #4a4f80; color: #b9bcff; }
+  .batches { display: grid; gap: 6px; }
+  details.batch { border: 1px solid var(--line); border-radius: 8px; background: #191a21; }
+  details.batch summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; cursor: pointer; }
+  details.batch summary .num { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 1.5em; }
+  details.batch summary .label { color: var(--muted); font-size: 12px; flex: 1; min-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  details.batch summary .btns { margin-left: auto; }
+  details.batch ol { margin: 0; padding: 4px 12px 10px 2.4em; color: var(--muted); font-size: 12px; line-height: 1.8; }
+  details.batch li b { color: var(--fg); font-weight: 500; }
+  details.batch li img { width: 16px; height: 22px; object-fit: contain; vertical-align: middle; margin-right: 4px; }
+  .edited-note { border: 1px solid #3f4470; background: #1f2135; border-radius: 8px; padding: 8px 10px; color: #c9ccff; font-size: 12px;
+                 display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+  .editor { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; background: #191a21; }
+  .editor h3 { margin: 0; font-size: 12px; color: var(--muted); font-weight: 400; }
+  .editor .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .editor .ed-image { grid-column: 1 / -1; display: grid; gap: 2px; }
+  .editor.over { border-color: var(--accent); }
+  .editor label { display: grid; gap: 2px; color: var(--muted); font-size: 11px; }
+  .editor textarea { min-height: 70px; resize: vertical; line-height: 1.6; }
+  @media (max-width: 560px) { .editor .grid { grid-template-columns: 1fr; } }
+  .summary b { color: var(--fg); }
+  .status { color: var(--muted); font-size: 12px; min-height: 1.4em; margin: 0; }
+  .status.error { color: #ff8f8f; }
+
+  .note { color: var(--muted); font-size: 12px; line-height: 1.8; margin: 0; }
+  .note h2 { font-size: 13px; color: var(--fg); margin: 16px 0 6px; }
+  .note ol, .note ul { margin: 6px 0; padding-left: 1.4em; }
+  .note b { color: var(--fg); }
+  .note a { color: #a8abff; }
+  .note .warn { color: var(--warn); }
+  footer { border-top: 1px solid var(--line); padding: 16px 24px 40px; color: var(--muted); font-size: 12px; line-height: 1.9; }
+  footer a { color: #a8abff; }
+  .home-link { display: inline-block; margin-bottom: 4px; color: var(--muted); font-size: 12px; text-decoration: none; }
+  .home-link:hover { color: var(--fg); text-decoration: underline; }
+  .home-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="home-link" href="https://shiki365.github.io/">‹ shiki365 のツール置き場</a>
+  <h1>シナリオテキストメーカー</h1>
+  <p>台本や描写の文章を貼ると、ココフォリアの「シナリオテキスト」をまとめて作ります。できたファイルをルームデータとして読み込むだけで、シナリオテキスト一覧に並びます。台詞には話し手の立ち絵（表情の差分も）を、描写やハンドアウトには 1 件ずつ好きな画像を付けられ、シナリオテキストから送るとメッセージボックスに画像が出ます。すべてブラウザの中だけで処理され、入力した内容や画像がどこかに送られることはありません。マシュマロでいただいた要望から生まれたツールです。</p>
+</header>
+
+<main>
+  <div class="panel">
+    <fieldset>
+      <legend>作り方</legend>
+      <div class="mode" role="radiogroup" aria-label="作り方">
+        <label><input type="radio" name="mode" value="script" data-opt="mode"><span><b>台本（台詞を 1 件ずつ）</b>「アリス「こんにちは」」のような台本を、台詞ごとに分けます。タイトルは話し手の名前になります。</span></label>
+        <label><input type="radio" name="mode" value="heading" data-opt="mode"><span><b>見出しで区切る（描写・情報）</b>「■図書館」のような見出しごとに分けます。タイトルは見出し、本文はその下の文です。探索箇所の描写やハンドアウトに。</span></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>画像の置き場（<span id="imageCount">0</span> 枚）</legend>
+      <p class="desc">立ち絵やハンドアウトの絵をここに入れておくと、話し手の立ち絵や、1 件ずつの画像としてプルダウンで選べます。画像はこのブラウザの中に保存されます。</p>
+      <div class="drop" id="drop" role="button" tabindex="0">ここに画像をドラッグ＆ドロップ／クリックして選ぶ（何枚でも）<br><span>PNG・JPEG・GIF・WebP　1 枚 5 MB まで</span></div>
+      <div class="btns" style="margin-top: 8px;"><button type="button" class="small" id="addUrl">URL で追加</button></div>
+      <div class="gallery" id="gallery"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>話し手（立ち絵）</legend>
+      <p class="desc">人物と立ち絵を登録します（立ち絵がいらなければ、登録しなくても作れます）。<b>名前</b>は、ココフォリアで送ったときに表示される名前（シナリオテキストのタイトル）になります。立ち絵は置き場の画像から選ぶか、「＋ 画像」で追加します（左の枠に画像をドロップしても設定できます）。表情ごとの画像は「差分」に登録し、台本に「アリス（笑顔）「…」」か「アリス@笑顔「…」」と書くと切り替わります。</p>
+      <div class="speakers" id="speakers"></div>
+      <div class="btns" style="margin-top: 10px;"><button type="button" id="addSpeaker">＋ 話し手を追加</button></div>
+      <div class="row"><label></label><label class="check"><input type="checkbox" data-opt="faceInTitle"> 差分の名前をタイトルにも付ける（例: アリス（笑顔））</label></div>
+      <p class="desc">オフなら、差分を選んでもタイトルは「アリス」のまま（立ち絵だけ変わる）。オンなら、ココフォリアでも「アリス（笑顔）」と表示されます。手直しで打ったタイトルは変わりません。</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>読み取り方</legend>
+      <div class="row" data-mode="script"><label for="optUnit">1 件の区切り</label>
+        <select id="optUnit" data-opt="unit">
+          <option value="line">1 行ずつ（「」が閉じるまでは続ける）</option>
+          <option value="block">空行で区切ったまとまりごと</option>
+        </select></div>
+      <div class="row" data-mode="script"><label for="optStyle">話し手の書き方</label>
+        <select id="optStyle" data-opt="style">
+          <option value="auto">自動（名前「台詞」／登録した名前：台詞）</option>
+          <option value="quote">名前「台詞」だけ</option>
+          <option value="colon">名前：台詞 だけ</option>
+        </select></div>
+      <div class="row" data-mode="script"><label></label><label class="check"><input type="checkbox" id="optKeepQuotes" data-opt="keepQuotes"> 台詞の「」を残す</label></div>
+      <div class="row" data-mode="script"><label for="optNarration">地の文</label>
+        <select id="optNarration" data-opt="narration">
+          <option value="include">シナリオテキストに入れる</option>
+          <option value="skip">入れない（台詞だけ）</option>
+        </select></div>
+      <div class="row" id="narratorRow"><label for="optNarrator" id="narratorLabel">地の文の名前</label>
+        <input type="text" id="optNarrator" data-opt="narratorName" placeholder="空なら、送るときの名前の欄の名前"></div>
+      <p class="desc" data-mode="heading">見出しは「■」「□」「◆」「●」「★」などの記号で始まる行、「【図書館】」のように【】だけの行、「## 図書館」のように # で始まる行です。見出しが登録した話し手の名前なら、その立ち絵が付きます。</p>
+      <p class="desc">名前を空にすると、送るときに名前の欄に入っている名前（いつも GM が使っている名前など）で送られます。話し手として登録した名前にすると、その立ち絵も付きます。</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>保存</legend>
+      <div class="btns">
+        <button type="button" class="small" id="saveProject">プロジェクトを保存</button>
+        <button type="button" class="small" id="loadProject">プロジェクトを開く</button>
+        <button type="button" class="small danger" id="resetAll">最初からやり直す</button>
+      </div>
+      <p class="desc">話し手と文章、置き場の画像は、このブラウザに自動で保存されます。別の PC やブラウザに移すときは「プロジェクトを保存」を使ってください（置き場の画像もファイルに入ります）。</p>
+    </fieldset>
+  </div>
+
+  <div class="stack">
+    <section class="card">
+      <div class="card-head">
+        <h2 id="textTitle">台本</h2>
+        <button type="button" class="small" id="fillSample">例を入れる</button>
+      </div>
+      <textarea id="script" spellcheck="false" aria-labelledby="textTitle"></textarea>
+      <div class="unknown" id="unknown" hidden></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>できあがり（<span id="count">0</span> 件）</h2>
+        <span class="summary" id="summary"></span>
+      </div>
+      <div class="edited-note" id="editedNote" hidden>
+        <span>一覧を手直ししています。文章や読み取り方を変えても、一覧はこのままです。</span>
+        <button type="button" class="small" id="rebuild">文章から作り直す</button>
+      </div>
+      <p class="desc" style="margin: 0;">一覧をクリックすると、シナリオテキスト一覧から送ったときの見え方（ココフォリア標準のメッセージボックス）と、手直しの欄が出ます。</p>
+      <div class="stage" aria-label="メッセージボックスの見本">
+        <div class="mbox" id="mbox" hidden>
+          <img class="portrait" id="mboxPortrait" alt="" hidden>
+          <div class="body"><div class="name" id="mboxName"></div><div class="text" id="mboxText"></div></div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>行</th><th>画像</th><th>タイトル（名前）</th><th>本文</th></tr></thead>
+          <tbody id="entries"></tbody>
+        </table>
+      </div>
+      <div class="editor" id="editor" hidden>
+        <h3>選んだ 1 件を手直し（画像をここにドロップすると、この 1 件の画像になります）</h3>
+        <div class="grid">
+          <label>タイトル（名前）<input type="text" id="edTitle" placeholder="空なら名前の欄の名前"><button type="button" class="small" id="edTitleReset" hidden>話し手の名前に戻す</button></label>
+          <label>話し手<select id="edSpeaker"></select></label>
+          <label>差分<select id="edFace"></select></label>
+          <div class="ed-image"><label for="edImage">画像（この 1 件だけ）</label>
+            <div class="img-row"><select id="edImage"></select><button type="button" class="small" id="edImageAdd" aria-label="この 1 件の画像をファイルから追加">＋ 画像</button></div></div>
+        </div>
+        <label>本文<textarea id="edText"></textarea></label>
+        <div class="btns">
+          <button type="button" class="small" id="edUp">↑ 上へ</button>
+          <button type="button" class="small" id="edDown">↓ 下へ</button>
+          <button type="button" class="small" id="edAdd">＋ 下に 1 件足す</button>
+          <button type="button" class="small danger" id="edDelete">この 1 件を削除</button>
+        </div>
+      </div>
+      <div class="card-head">
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+        <button type="button" id="confirmBatch" disabled>確定して、次の文章へ</button>
+      </div>
+      <p class="desc" style="margin: 0;">たくさん作るときは、ここで「確定」すると今の一覧が下に残り、文章の欄が空になります。続けて次の台本や描写を入れられます。</p>
+    </section>
+
+    <section class="card" id="confirmedCard" hidden>
+      <div class="card-head">
+        <h2>確定したシナリオテキスト（<span id="confirmedCount">0</span> 件）</h2>
+      </div>
+      <div class="batches" id="confirmedList"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>書き出し</h2>
+        <button type="button" class="primary" id="exportZip" disabled>ルームデータ（ZIP）を書き出す</button>
+      </div>
+      <p class="summary" id="exportSummary"></p>
+      <p class="status" id="exportStatus" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <div class="note">
+        <h2 style="margin-top: 0;">ココフォリアでの読み込みかた</h2>
+        <ol>
+          <li>ルームに <b>GM（ルームマスター・サブルームマスター）</b>として入る。ゲストのログインでは読み込めません</li>
+          <li>左上のルーム名 →「ルーム設定」→「ルームデータ」→「ルームデータのインポート」の「インポート」で、書き出した ZIP を選ぶ（盤面に ZIP をドラッグ＆ドロップしても読み込めます）</li>
+          <li>「外部ツールで作成および編集されたデータです。信頼できるデータのみ取り込むようにしてください。」と出るので、このツールで作ったものなら OK。<b>このツールのデータは、いつもこの確認が出ます</b></li>
+          <li>上のメニューの「[GM] シナリオテキスト一覧」に、台本の順に並んでいます。開いて「送信」すると、タイトルの名前で送られ、メッセージボックスに立ち絵が出ます</li>
+        </ol>
+        <h2>知っておいてほしいこと</h2>
+        <ul>
+          <li>読み込むとシナリオテキストが<b>追加</b>されます。すでにあるシナリオテキストやキャラクター、盤面は変わりません。いらなくなったら、シナリオテキスト一覧から削除してください</li>
+          <li>立ち絵が出るのは、シナリオテキスト一覧から「送信」したときです。送信欄に打って送ると、ふつうの発言（名前の欄のキャラクター）になります</li>
+          <li>置き場の画像は、このブラウザの中にだけ保存されます（ブラウザのサイトデータを消すと消えます）。大事なものは「プロジェクトを保存」でファイルにも残してください</li>
+          <li>画像は読み込んだときにココフォリアへアップロードされます（ルームデータの画像と同じ共有の置き場）。<b>ほかの人の立ち絵を使うときは、描いた人の許可の範囲で</b></li>
+          <li>自分で作ったルームで使ってください。購入したシナリオ（CCFOLIA GAMES など）のルームデータは、改変が禁止されています</li>
+          <li class="warn">ココフォリアの非公式のツールです。ココフォリアのアップデートで、読み込めなくなることがあります</li>
+        </ul>
+        <h2>OBS に映すなら</h2>
+        <p>メッセージボックスを配信画面に映すには、<a href="https://shiki365.github.io/message-box-maker/">メッセージボックスメーカー</a>で作ったカスタム CSS と組み合わせてください。</p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<input type="file" id="projectFile" accept=".json,application/json" hidden>
+<input type="file" id="imageFile" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+<input type="file" id="imageFiles" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
+
+<footer>
+  ブラウザだけで動く無料ツールです。作ったデータは自由に使えます。<br>
+  ココフォリアのデータの形が変わると、読み込めなくなることがあります。いずれのサービスとも関係のない<strong>非公式</strong>のツールです。<br>
+  <a href="https://shiki365.github.io/">ほかのツールも見る（shiki365 のツール置き場）</a> ・ <a href="https://shiki365.github.io/#contact">不具合の報告・感想</a> ・ <a href="https://marshmallow-qa.com/jisg2c3imbza76d">ほしいツールの要望（マシュマロ）</a> ・ <a href="https://sabunomisogi.booth.pm/items/8891048">開発を応援する（BOOTH）</a><br>
+  v1.1 ・ 最終更新 2026-10-03
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="parse.v1.js?v=1"></script>
+<script src="roomdata.v1.js?v=2"></script>
+<script src="app.v1.js?v=2"></script>
+</body>
+</html>
