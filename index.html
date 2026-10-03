@@ -99,6 +99,9 @@
   .face { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; align-items: center; }
   .face .thumb { width: 40px; height: 52px; font-size: 10px; }
   .faces > button { justify-self: start; }
+  .face-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .face-tools select { width: auto; max-width: 100%; padding: 4px 8px; font-size: 12px; }
+  .face-tools select:disabled { opacity: .5; }
   .mode { display: grid; gap: 6px; margin-top: 10px; }
   .mode label { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; align-items: start; padding: 8px 10px;
                 border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: #191a21; }
@@ -202,15 +205,15 @@
 
     <fieldset>
       <legend>画像の置き場（<span id="imageCount">0</span> 枚）</legend>
-      <p class="desc">立ち絵やハンドアウトの絵をここに入れておくと、話し手の立ち絵や、1 件ずつの画像としてプルダウンで選べます。画像はこのブラウザの中に保存されます。</p>
+      <p class="desc">立ち絵やハンドアウトの絵をここに入れておくと、話し手の立ち絵や、1 件ずつの画像としてプルダウンで選べます。<b>画像の名前と同じ見出しや話し手には、自動でその画像が付きます</b>（「■鍵」と書けば、「鍵」という名前の画像）。画像はこのブラウザの中に保存されます。</p>
       <div class="drop" id="drop" role="button" tabindex="0">ここに画像をドラッグ＆ドロップ／クリックして選ぶ（何枚でも）<br><span>PNG・JPEG・GIF・WebP　1 枚 5 MB まで</span></div>
-      <div class="btns" style="margin-top: 8px;"><button type="button" class="small" id="addUrl">URL で追加</button></div>
+      <div class="btns" style="margin-top: 8px;"><button type="button" class="small" id="addUrl">URL で追加</button><button type="button" class="small" id="makeFromImages" title="置き場の画像 1 枚につき、シナリオテキストを 1 件、一覧の最後に足します">画像ごとに 1 件作る</button></div>
       <div class="gallery" id="gallery"></div>
     </fieldset>
 
     <fieldset>
       <legend>話し手（立ち絵）</legend>
-      <p class="desc">人物と立ち絵を登録します（立ち絵がいらなければ、登録しなくても作れます）。<b>名前</b>は、ココフォリアで送ったときに表示される名前（シナリオテキストのタイトル）になります。立ち絵は置き場の画像から選ぶか、「＋ 画像」で追加します（左の枠に画像をドロップしても設定できます）。表情ごとの画像は「差分」に登録し、台本に「アリス（笑顔）「…」」か「アリス@笑顔「…」」と書くと切り替わります。</p>
+      <p class="desc">人物と立ち絵を登録します（立ち絵がいらなければ、登録しなくても作れます）。<b>名前</b>は、ココフォリアで送ったときに表示される名前（シナリオテキストのタイトル）になります。立ち絵は置き場の画像から選ぶか、「＋ 画像」で追加します（左の枠に画像をドロップしても設定できます）。表情ごとの画像は「差分」に登録するか、置き場に「アリス_笑顔」のような名前で入れて「置き場から差分を作る」を押します。立ち絵から、シルエット・セピアなどの<b>演出差分</b>も作れます（立ち絵を加工するので、描いた人が加工を認めている立ち絵だけに使ってください。動く画像は最初のコマだけ）。台本に「アリス（笑顔）「…」」か「アリス@笑顔「…」」と書くと切り替わります。</p>
       <div class="speakers" id="speakers"></div>
       <div class="btns" style="margin-top: 10px;"><button type="button" id="addSpeaker">＋ 話し手を追加</button></div>
       <div class="row"><label></label><label class="check"><input type="checkbox" data-opt="faceInTitle"> 差分の名前をタイトルにも付ける（例: アリス（笑顔））</label></div>
@@ -238,7 +241,7 @@
         </select></div>
       <div class="row" id="narratorRow"><label for="optNarrator" id="narratorLabel">地の文の名前</label>
         <input type="text" id="optNarrator" data-opt="narratorName" placeholder="空なら、送るときの名前の欄の名前"></div>
-      <p class="desc" data-mode="heading">見出しは「■」「□」「◆」「●」「★」などの記号で始まる行、「【図書館】」のように【】だけの行、「## 図書館」のように # で始まる行です。見出しが登録した話し手の名前なら、その立ち絵が付きます。</p>
+      <p class="desc" data-mode="heading">見出しは「■」「□」「◆」「●」「★」などの記号で始まる行、「【図書館】」のように【】だけの行、「## 図書館」のように # で始まる行です。見出しが登録した話し手の名前なら、その立ち絵が付きます。置き場の画像の名前と同じなら、その画像が付きます。</p>
       <p class="desc">名前を空にすると、送るときに名前の欄に入っている名前（いつも GM が使っている名前など）で送られます。話し手として登録した名前にすると、その立ち絵も付きます。</p>
     </fieldset>
 
@@ -358,12 +361,12 @@
   ブラウザだけで動く無料ツールです。作ったデータは自由に使えます。<br>
   ココフォリアのデータの形が変わると、読み込めなくなることがあります。いずれのサービスとも関係のない<strong>非公式</strong>のツールです。<br>
   <a href="https://shiki365.github.io/">ほかのツールも見る（shiki365 のツール置き場）</a> ・ <a href="https://shiki365.github.io/#contact">不具合の報告・感想</a> ・ <a href="https://marshmallow-qa.com/jisg2c3imbza76d">ほしいツールの要望（マシュマロ）</a> ・ <a href="https://sabunomisogi.booth.pm/items/8891048">開発を応援する（BOOTH）</a><br>
-  v1.1 ・ 最終更新 2026-10-03
+  v1.2 ・ 最終更新 2026-10-03
 </footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="parse.v1.js?v=1"></script>
 <script src="roomdata.v1.js?v=2"></script>
-<script src="app.v1.js?v=2"></script>
+<script src="app.v1.js?v=3"></script>
 </body>
 </html>

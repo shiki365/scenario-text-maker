@@ -336,15 +336,29 @@
   const sizeText = n => n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
   const findFace = (sp, label) => sp && label ? (sp.faces || []).find(f => P.key(f.label) === P.key(label)) : null;
 
+  // Shelf images by name, so a heading ■鍵 or a speaker 鍵 finds the image named 鍵.
+  let nameIdx = new Map();
+  function indexNames() {
+    nameIdx = new Map();
+    for (const im of state.images) {
+      const k = P.key(im.name);
+      if (k && !nameIdx.has(k)) nameIdx.set(k, im);
+    }
+  }
+  const imageByName = name => nameIdx.get(P.key(name)) || null;
+
   // The image an entry sends: one chosen for it alone, else its face if registered, else the
-  // speaker's base image.
+  // speaker's base image, else the shelf image named like its title (■鍵 finds 鍵).
   function imageOf(e) {
     if (e.image === "none") return null;
     if (e.image && e.image !== "auto") return imageById(e.image);
     const sp = e.speakerId && speakerById(e.speakerId);
-    if (!sp) return null;
-    const f = findFace(sp, e.face);
-    return imageById(f && f.imageId) || imageById(sp.imageId);
+    if (sp) {
+      const f = findFace(sp, e.face);
+      const own = imageById(f && f.imageId) || imageById(sp.imageId);
+      if (own) return own;
+    }
+    return imageByName(titleOf(e)) || imageByName(e.title);
   }
   const faceMissing = e => !!(e.face && e.speakerId && !findFace(speakerById(e.speakerId), e.face));
   // The title CCFOLIA shows: アリス, or アリス（笑顔） when faces go into titles.
@@ -432,6 +446,7 @@
     const box = $("#gallery");
     box.textContent = "";
     $("#imageCount").textContent = state.images.length;
+    $("#makeFromImages").disabled = !state.images.length;
     if (!state.images.length) {
       const p = document.createElement("p");
       p.className = "desc";
@@ -536,10 +551,145 @@
         if (inputs.length) inputs[inputs.length - 1].focus();
       });
       faces.append(addFace);
+
+      // More faces: from shelf images named like アリス_笑顔, or by an effect on the portrait.
+      const tools = document.createElement("div");
+      tools.className = "face-tools";
+      const fromNames = button("置き場から差分を作る", "faces-from-names");
+      fromNames.title = `名前が「${sp.name || "話し手の名前"}_笑顔」のような画像を、差分にします`;
+      fromNames.addEventListener("click", () => facesFromNames(sp));
+      const fxSel = document.createElement("select");
+      fxSel.setAttribute("aria-label", `${sp.name || "話し手"}の立ち絵から演出差分を作る`);
+      fxSel.append(new Option("演出差分を作る…", ""));
+      for (const [id, label] of FX) fxSel.append(new Option(label, id));
+      const src = imageById(sp.imageId);
+      fxSel.disabled = !(src && src.kind === "file");
+      fxSel.title = fxSel.disabled ? "ファイルの立ち絵を設定すると使えます（URL の画像は、ブラウザの制限で加工できません）" : "立ち絵を加工して、差分を作ります";
+      fxSel.addEventListener("change", () => { const v = fxSel.value; fxSel.value = ""; if (v) makeFx(sp, v); });
+      tools.append(fromNames, fxSel);
+      faces.append(tools);
       fields.append(faces);
       el.append(fields);
       box.append(el);
     });
+  }
+
+  // ---------------------------------------------------------------- bulk helpers
+
+  // One entry per shelf image that nothing in the list shows yet (title = the image's name).
+  function makeFromImages() {
+    if (!state.images.length) { status("置き場に画像がありません。", true); return; }
+    const used = new Set(entries.map(imageOf).filter(Boolean).map(im => im.id));
+    const fresh = state.images.filter(im => !used.has(im.id));
+    if (!fresh.length) { status("置き場の画像は、すべて一覧で使われています。", true); return; }
+    ensureEdited();
+    const first = state.edited.length;
+    for (const im of fresh) state.edited.push(cleanEntry({ kind: "heading", title: im.name, text: "", image: im.id, titleCustom: true }));
+    entries = state.edited;
+    selected = first;
+    update();
+    status(`画像 ${fresh.length} 枚ぶん、シナリオテキストを足しました${used.size ? `（一覧で使っている ${used.size} 枚は飛ばしました）` : ""}。本文が空なので、1 件ずつ入れてください。`);
+  }
+
+  // Shelf images named 話し手_差分 (アリス_笑顔, アリス（笑顔）, アリス@笑顔 ...) become that speaker's faces;
+  // an image named just アリス becomes the portrait if there is none.
+  const FACE_SEP = /^[\s_\-－@＠（(：:]+/;
+  function facesFromNames(sp) {
+    const names = [sp.name].concat(String(sp.aliases || "").split(/[,、，]/)).map(P.key).filter(Boolean).sort((a, b) => b.length - a.length);
+    if (!names.length) { status("先に、話し手の名前を入れてください。", true); return; }
+    const made = [];
+    let base = false, found = 0;
+    for (const im of state.images) {
+      const n = P.key(im.name);
+      const a = names.find(x => n === x || n.startsWith(x));
+      if (!a) continue;
+      if (n === a) { found++; if (!sp.imageId) { sp.imageId = im.id; base = true; } continue; }
+      const rest = n.slice(a.length);
+      if (!FACE_SEP.test(rest)) continue; // アリスの家 is another name, not a face
+      const label = rest.replace(FACE_SEP, "").replace(/[）)]+$/, "").trim();
+      if (!label) continue;
+      found++;
+      if (findFace(sp, label)) continue;
+      sp.faces.push({ id: uid("f"), label, imageId: im.id });
+      made.push(label);
+    }
+    if (!made.length && !base) {
+      status(found ? "新しく作れる差分はありません（すでに作ってあります）。" : `名前が「${sp.name}」で始まる画像が見つかりません。画像の名前を「${sp.name}_笑顔」のようにしてください。`, !found);
+      return;
+    }
+    update();
+    status((made.length ? `差分を ${made.length} 個作りました: ${made.join("、")}。` : "") + (base ? "立ち絵も設定しました。" : ""));
+  }
+
+  // ---------------------------------------------------------------- effect faces
+
+  const FX = [["silhouette", "シルエット"], ["sepia", "セピア"], ["mono", "モノクロ"], ["blur", "ぼかし"], ["ghost", "半透明"]];
+  const fxLabel = id => (FX.find(f => f[0] === id) || [])[1] || id;
+
+  async function hasTransparency(blob) {
+    const bmp = await createImageBitmap(blob);
+    try {
+      const c = document.createElement("canvas");
+      c.width = c.height = 48;
+      const g = c.getContext("2d", { willReadFrequently: true });
+      g.drawImage(bmp, 0, 0, 48, 48);
+      const d = g.getImageData(0, 0, 48, 48).data;
+      for (let i = 3; i < d.length; i += 4) if (d[i] < 250) return true;
+      return false;
+    } finally { bmp.close(); }
+  }
+
+  // The image (its first frame, if it moves) drawn with an effect -> PNG.
+  async function drawFx(blob, fx) {
+    const bmp = await createImageBitmap(blob);
+    try {
+      const small = Math.min(bmp.width, bmp.height);
+      const pad = fx === "blur" ? Math.max(8, Math.round(small / 20)) : 0;
+      const c = document.createElement("canvas");
+      c.width = bmp.width + pad * 2;
+      c.height = bmp.height + pad * 2;
+      const g = c.getContext("2d");
+      if (fx === "sepia" || fx === "mono" || fx === "blur") {
+        if (!("filter" in g)) throw new Error("このブラウザでは、この効果は使えません");
+        g.filter = fx === "sepia" ? "sepia(1)" : fx === "mono" ? "grayscale(1)" : `blur(${Math.max(2, Math.round(small / 80))}px)`;
+      }
+      if (fx === "ghost") g.globalAlpha = 0.5;
+      g.drawImage(bmp, pad, pad);
+      if (fx === "silhouette") {
+        g.globalCompositeOperation = "source-in";
+        g.fillStyle = "#000";
+        g.fillRect(0, 0, c.width, c.height);
+      }
+      return await new Promise((resolve, reject) => c.toBlob(b => b ? resolve(b) : reject(new Error("画像を書き出せませんでした")), "image/png"));
+    } finally { bmp.close(); }
+  }
+
+  let fxBusy = false;
+  async function makeFx(sp, fx) {
+    const src = imageById(sp.imageId);
+    if (!src) { status("先に、この話し手の立ち絵を設定してください。", true); return; }
+    if (src.kind !== "file" || !blobs.has(src.id)) { status("URL の画像は、ブラウザの制限で加工できません。ファイルの画像で試してください。", true); return; }
+    const label = fxLabel(fx);
+    if (findFace(sp, label)) { status(`すでに「${label}」の差分があります。`, true); return; }
+    if (fxBusy) return;
+    fxBusy = true;
+    try {
+      const blob = blobs.get(src.id);
+      if (fx === "silhouette" && !(await hasTransparency(blob))) {
+        status("この画像は背景が透明ではないので、四角い黒い塊になります。背景が透明な PNG の立ち絵で試してください。", true);
+        return;
+      }
+      const out = await drawFx(blob, fx);
+      const [id] = await addFiles([new File([out], `${src.name}（${label}）.png`, { type: "image/png" })]);
+      if (!id) return;
+      sp.faces.push({ id: uid("f"), label, imageId: id });
+      update();
+      const big = tooBig(imageById(id));
+      status(`差分「${label}」を作りました（画像は置き場に入っています）。台本に「${sp.name || "名前"}（${label}）「…」」と書くと使えます。` + (big ? "ただし 5 MB を超えています。ココフォリアで読み込めないことがあります。" : ""), big);
+    } catch (err) {
+      console.error(err);
+      status("演出差分を作れませんでした: " + err.message, true);
+    } finally { fxBusy = false; }
   }
 
   // ---------------------------------------------------------------- warnings
@@ -670,7 +820,7 @@
     faceSel.disabled = !sp;
     const imgSel = $("#edImage");
     imgSel.textContent = "";
-    imgSel.append(new Option("自動（話し手・差分の画像）", "auto"), new Option("画像なし", "none"));
+    imgSel.append(new Option("自動（話し手・差分・同じ名前の画像）", "auto"), new Option("画像なし", "none"));
     for (const im of state.images) imgSel.append(new Option(imageLabel(im), im.id));
     imgSel.value = e.image === "none" || imageById(e.image) ? e.image : "auto";
     $("#edText").value = e.text;
@@ -747,6 +897,7 @@
   }
 
   function update(o) {
+    indexNames();
     entries = state.edited || P.parse(state.script, state.speakers, state.opts);
     if (selected >= entries.length) selected = entries.length - 1;
     if (!(o && (o.keepSpeakers || o.keepGallery))) renderGallery();
@@ -961,6 +1112,7 @@
       addFiles(files).then(ids => { if (take) take(ids); if (ids.length) update(); });
     });
     $("#addUrl").addEventListener("click", () => { if (addUrl()) { update(); status("URL の画像を置き場に入れました。"); } });
+    $("#makeFromImages").addEventListener("click", makeFromImages);
     // A file dropped outside a drop area would make the browser leave the page to show it.
     window.addEventListener("dragover", ev => { if (hasFiles(ev)) ev.preventDefault(); });
     window.addEventListener("drop", ev => { if (hasFiles(ev) && !ev.defaultPrevented) { ev.preventDefault(); status("画像は「画像の置き場」の枠か、話し手の画像の所にドロップしてください。", true); } });
