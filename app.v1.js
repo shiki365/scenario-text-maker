@@ -76,11 +76,12 @@
   const cleanImage = im => im.kind === "url"
     ? { id: String(im.id), kind: "url", name: String(im.name || ""), url: String(im.url) }
     : { id: String(im.id), kind: "file", name: String(im.name || ""), type: String(im.type || ""), size: Number(im.size) || 0, hash: String(im.hash || "") };
+  const withCredit = (src, im) => Object.assign(im, { credit: String(src.credit || "") });
 
   function normalize(s) {
     const d = defaultState();
     if (!s || typeof s !== "object") return d;
-    const images = Array.isArray(s.images) ? s.images.filter(im => im && im.id && (im.kind === "url" ? im.url : im.kind === "file")).map(cleanImage) : [];
+    const images = Array.isArray(s.images) ? s.images.filter(im => im && im.id && (im.kind === "url" ? im.url : im.kind === "file")).map(im => withCredit(im, cleanImage(im))) : [];
     const ref = v => v ? String(v) : null;
     const speakers = Array.isArray(s.speakers) ? s.speakers.filter(x => x && typeof x === "object").map(x => ({
       id: String(x.id || uid("s")), name: String(x.name || ""), aliases: String(x.aliases || ""), imageId: ref(x.imageId),
@@ -213,7 +214,7 @@
     const seen = new Map(); // data url or url -> image, so one portrait used twice becomes one image
     const fromData = (meta, dataUrl) => {
       const { type, bytes } = R.dataUrlBytes(dataUrl);
-      const im = { id: String(meta.id || uid("i")), kind: "file", name: String(meta.name || "画像"), type, size: bytes.length, hash: String(meta.hash || "") };
+      const im = { id: String(meta.id || uid("i")), kind: "file", name: String(meta.name || "画像"), type, size: bytes.length, hash: String(meta.hash || ""), credit: String(meta.credit || "") };
       holdBlob(im.id, new Blob([bytes], { type }));
       lifted.push(im);
       return im;
@@ -465,13 +466,19 @@
       name.value = im.name;
       name.setAttribute("aria-label", "画像の名前");
       name.addEventListener("input", () => { im.name = name.value; update({ keepGallery: true }); });
+      const credit = document.createElement("input");
+      credit.type = "text";
+      credit.value = im.credit || "";
+      credit.placeholder = "出典・作者（任意）";
+      credit.setAttribute("aria-label", `画像「${im.name}」の出典・作者`);
+      credit.addEventListener("input", () => { im.credit = credit.value; update({ keepGallery: true }); });
       const info = document.createElement("span");
       info.className = "info" + (tooBig(im) || missing(im) ? " warn" : "");
       info.textContent = im.kind === "url" ? "URL" : missing(im) ? "中身が見つかりません" : sizeText(im.size) + (tooBig(im) ? "（5 MB 超）" : "");
       if (im.kind === "url") info.title = im.url;
       const del = button("削除", "delete-image", { danger: true, aria: `画像「${im.name}」を削除` });
       del.addEventListener("click", () => removeImage(im));
-      cell.append(name, info, del);
+      cell.append(name, credit, info, del);
       box.append(cell);
     }
   }
@@ -1008,6 +1015,7 @@
       ? (done ? `確定 <b>${done}</b> 件 ＋ 今の一覧 <b>${entries.length}</b> 件 ＝ <b>${total}</b> 件を 1 つの ZIP に書き出します。` : `今の一覧 <b>${entries.length}</b> 件を ZIP に書き出します。`)
       : "書き出すシナリオテキストがまだありません。";
     $("#exportZip").disabled = total === 0;
+    syncBundleButton();
   }
 
   // ---------------------------------------------------------------- export
@@ -1016,6 +1024,99 @@
     const el = $("#exportStatus");
     el.textContent = message;
     el.classList.toggle("error", !!isError);
+  }
+
+  // ---------------------------------------------------------------- image bundle
+
+  // image id -> Map(title shown -> how many entries), for every entry that sends an image.
+  function usageMap(all) {
+    const use = new Map();
+    for (const e of all) {
+      const im = imageOf(e);
+      if (!im) continue;
+      const t = titleOf(e) || "（名前の欄）";
+      if (!use.has(im.id)) use.set(im.id, new Map());
+      const m = use.get(im.id);
+      m.set(t, (m.get(t) || 0) + 1);
+    }
+    return use;
+  }
+  const allEntries = () => state.confirmed.flatMap(b => b.entries).concat(entries);
+
+  function syncBundleButton() {
+    const n = $("#bundleAll").checked ? state.images.length : usageMap(allEntries()).size;
+    $("#exportImages").disabled = n === 0;
+  }
+
+  const fileSafe = s => String(s || "").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").trim() || "画像";
+  function usedText(m) {
+    if (!m || !m.size) return "（使っていません）";
+    const parts = [...m].map(([t, n]) => `${t} ×${n}`);
+    return parts.length > 8 ? parts.slice(0, 8).join("、") + `、ほか ${parts.length - 8} 種` : parts.join("、");
+  }
+
+  // The images the scenario texts use (or the whole shelf), under readable names, with a list that
+  // says where each is used, who made it, and what it is called inside the room data zip.
+  async function exportImages() {
+    if (!window.JSZip) { exportStatus("ZIP を作る部品を読み込めませんでした。ネットにつながった状態で開き直してください。", true); return; }
+    const use = usageMap(allEntries());
+    const everything = $("#bundleAll").checked;
+    const list = state.images.filter(im => everything || use.has(im.id));
+    if (!list.length) { exportStatus("まとめる画像がありません。", true); return; }
+    const btn = $("#exportImages");
+    btn.disabled = true;
+    exportStatus("ZIP を作っています…");
+    try {
+      const zip = new JSZip();
+      const taken = new Set();
+      const lines = [
+        "シナリオテキストメーカー 画像の一覧",
+        `作成: ${new Date().toLocaleString("ja-JP")}`,
+        `画像 ${list.length} 枚（${everything ? "置き場のすべて" : "シナリオテキストで使っているもの"}）`,
+        "画像ファイルは images フォルダに入っています。",
+        "「ルームデータ内の名前」は、書き出したルームデータ（ZIP）の中での、その画像のファイル名です。",
+        "",
+      ];
+      let files = 0, urls = 0, lost = 0, i = 0;
+      for (const im of list) {
+        i++;
+        const credit = im.credit ? im.credit : "（未記入）";
+        const where = usedText(use.get(im.id));
+        if (im.kind === "url") {
+          urls++;
+          lines.push(`[${i}] ${im.name}（URL の画像。中身は入っていません）`, `    URL: ${im.url}`, `    出典・作者: ${credit}`, `    使っている所: ${where}`, "");
+          continue;
+        }
+        const blob = blobs.get(im.id);
+        if (!blob) {
+          lost++;
+          lines.push(`[${i}] ${im.name}（中身が見つからないので、入っていません）`, `    出典・作者: ${credit}`, `    使っている所: ${where}`, "");
+          continue;
+        }
+        const ext = R.EXT[im.type] || R.EXT[blob.type] || "png";
+        const base = fileSafe(im.name);
+        let name = base, k = 2;
+        while (taken.has(`${name}.${ext}`.toLowerCase())) name = `${base}（${k++}）`;
+        taken.add(`${name}.${ext}`.toLowerCase());
+        zip.file(`images/${name}.${ext}`, await blob.arrayBuffer(), { compression: "STORE" });
+        files++;
+        lines.push(`[${i}] images/${name}.${ext}`, `    大きさ: ${sizeText(im.size)}（${im.type}）${tooBig(im) ? " ※ 5 MB を超えています" : ""}`);
+        if (im.hash) lines.push(`    ルームデータ内の名前: ${im.hash}.${ext}`);
+        lines.push(`    出典・作者: ${credit}`, `    使っている所: ${where}`, "");
+      }
+      zip.file("画像の一覧.txt", lines.join("\r\n"));
+      const out = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+      const fileName = `scenario-text-images-${stamp()}.zip`;
+      download(out, fileName);
+      exportStatus(`画像 ${files} 枚を ${fileName}（${sizeText(out.size)}）にまとめて保存しました。`
+        + (urls ? `URL の画像 ${urls} 件は、一覧に URL だけ書きました。` : "")
+        + (lost ? `中身が見つからない画像が ${lost} 枚あります。` : ""), !!lost);
+    } catch (err) {
+      console.error(err);
+      exportStatus("画像をまとめられませんでした: " + err.message, true);
+    } finally {
+      syncBundleButton();
+    }
   }
 
   async function exportZip() {
@@ -1141,6 +1242,8 @@
       update();
     });
     $("#exportZip").addEventListener("click", exportZip);
+    $("#exportImages").addEventListener("click", exportImages);
+    $("#bundleAll").addEventListener("change", syncBundleButton);
     $("#confirmBatch").addEventListener("click", () => { if (confirmCurrent()) update({ keepSpeakers: true }); });
     wireEditor();
 

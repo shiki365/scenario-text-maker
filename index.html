@@ -99,6 +99,7 @@
   .face { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; align-items: center; }
   .face .thumb { width: 40px; height: 52px; font-size: 10px; }
   .faces > button { justify-self: start; }
+  .bundle { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
   .face-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .face-tools select { width: auto; max-width: 100%; padding: 4px 8px; font-size: 12px; }
   .face-tools select:disabled { opacity: .5; }
@@ -205,7 +206,7 @@
 
     <fieldset>
       <legend>画像の置き場（<span id="imageCount">0</span> 枚）</legend>
-      <p class="desc">立ち絵やハンドアウトの絵をここに入れておくと、話し手の立ち絵や、1 件ずつの画像としてプルダウンで選べます。<b>画像の名前と同じ見出しや話し手には、自動でその画像が付きます</b>（「■鍵」と書けば、「鍵」という名前の画像）。画像はこのブラウザの中に保存されます。</p>
+      <p class="desc">立ち絵やハンドアウトの絵をここに入れておくと、話し手の立ち絵や、1 件ずつの画像としてプルダウンで選べます。<b>画像の名前と同じ見出しや話し手には、自動でその画像が付きます</b>（「■鍵」と書けば、「鍵」という名前の画像）。画像ごとに「出典・作者」のメモも付けられます（まとめて保存する一覧に入ります）。画像はこのブラウザの中に保存されます。</p>
       <div class="drop" id="drop" role="button" tabindex="0">ここに画像をドラッグ＆ドロップ／クリックして選ぶ（何枚でも）<br><span>PNG・JPEG・GIF・WebP　1 枚 5 MB まで</span></div>
       <div class="btns" style="margin-top: 8px;"><button type="button" class="small" id="addUrl">URL で追加</button><button type="button" class="small" id="makeFromImages" title="置き場の画像 1 枚につき、シナリオテキストを 1 件、一覧の最後に足します">画像ごとに 1 件作る</button></div>
       <div class="gallery" id="gallery"></div>
@@ -325,6 +326,11 @@
         <button type="button" class="primary" id="exportZip" disabled>ルームデータ（ZIP）を書き出す</button>
       </div>
       <p class="summary" id="exportSummary"></p>
+      <div class="bundle">
+        <button type="button" id="exportImages" disabled>使っている画像をまとめて保存（ZIP）</button>
+        <label class="check"><input type="checkbox" id="bundleAll"> 置き場のすべての画像を入れる</label>
+      </div>
+      <p class="desc" style="margin: 0;">書き出したルームデータの中の画像は、ファイル名が長い英数字（中身の識別子）になっています。こちらは、置き場の名前で読める形に並べ、「画像の一覧.txt」に、どのシナリオテキストで使っているか・出典のメモ・ルームデータ内のファイル名の対応を書きます。URL の画像は、ブラウザの制限で中身を入れられないので、URL だけ書きます。</p>
       <p class="status" id="exportStatus" role="status" aria-live="polite"></p>
     </section>
 
