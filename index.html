@@ -120,16 +120,31 @@
   .unknown { border: 1px solid #6b5230; background: #2a2218; border-radius: 8px; padding: 8px 10px; color: var(--warn); font-size: 12px; line-height: 1.8; }
   .unknown button { margin: 2px 4px 2px 0; }
 
-  .stage { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); height: 300px;
+  /* The preview is drawn at CCFOLIA's own size (message box max 720px, portrait width fixed, height by the image's shape)
+     and scaled down as a whole when the card is narrower. */
+  .preview-bar { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; justify-content: space-between; }
+  .preview-bar label { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
+  .preview-bar select { width: auto; max-width: 100%; padding: 4px 8px; font-size: 12px; }
+  #pvInfo { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .stage { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); min-height: 110px;
            background: radial-gradient(ellipse at 30% 20%, #6d7fa8, transparent 60%),
                        radial-gradient(ellipse at 80% 90%, #a8735a, transparent 55%), #2d3348; }
-  .mbox { position: absolute; left: 12px; right: 12px; bottom: 12px; max-width: 560px; margin: 0 auto; }
-  .mbox .portrait { position: absolute; left: 8px; bottom: 100%; width: 150px; max-height: 210px; object-fit: contain; object-position: left bottom; }
-  .mbox .body { position: relative; background: rgba(22, 22, 22, .84); color: #f5f5f5; border-radius: 4px;
+  .stage-in { position: absolute; left: 50%; top: 0; transform-origin: 50% 0; }
+  .stage-hint { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.7); font-size: 13px; }
+  .mbox { position: absolute; left: 24px; bottom: 24px; }
+  .mbox .portrait { position: absolute; left: 8px; bottom: 100%; height: auto; max-width: none; z-index: 0; }
+  .mbox .body { position: relative; z-index: 1; background: rgba(22, 22, 22, .84); color: #f5f5f5;
                 box-shadow: 0 3px 5px -1px rgba(0,0,0,.2), 0 6px 10px rgba(0,0,0,.14); }
-  .mbox .name { padding: 10px 16px 4px; font-size: 13px; font-weight: 500; min-height: 1.5em; }
+  .mbox .name { height: 48px; padding: 0 24px; display: flex; align-items: center; font-size: 14px; font-weight: 500; }
   .mbox .name.empty { color: #9a9aa5; font-weight: 400; }
-  .mbox .text { padding: 0 16px 12px; height: 64px; overflow: hidden; white-space: pre-wrap; line-height: 1.6; font-size: 13px; }
+  .mbox .name .btns { margin-left: auto; display: flex; gap: 18px; opacity: .65; font-size: 15px; }
+  .mbox .text { padding: 0 24px 16px; height: 80px; overflow: hidden; white-space: pre-wrap; line-height: 1.5; font-size: 16px; }
+  .logrow { display: grid; gap: 6px; }
+  .logrow .cap { color: var(--muted); font-size: 12px; }
+  .logitem { display: flex; gap: 10px; background: rgba(44, 44, 44, .87); border-radius: 6px; padding: 10px 12px; max-width: 380px; }
+  .logicon { flex: none; width: 40px; height: 40px; border-radius: 4px; object-fit: cover; object-position: 50% 0; background: #3a3a3a; }
+  .logname { display: block; font-size: 12px; color: #c7c7cf; }
+  .logtext { display: block; font-size: 13px; line-height: 1.5; max-height: 3em; overflow: hidden; white-space: pre-wrap; }
 
   .table-wrap { max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -276,12 +291,29 @@
         <span>一覧を手直ししています。文章や読み取り方を変えても、一覧はこのままです。</span>
         <button type="button" class="small" id="rebuild">文章から作り直す</button>
       </div>
-      <p class="desc" style="margin: 0;">一覧をクリックすると、シナリオテキスト一覧から送ったときの見え方（ココフォリア標準のメッセージボックス）と、手直しの欄が出ます。</p>
-      <div class="stage" aria-label="メッセージボックスの見本">
-        <div class="mbox" id="mbox" hidden>
-          <img class="portrait" id="mboxPortrait" alt="" hidden>
-          <div class="body"><div class="name" id="mboxName"></div><div class="text" id="mboxText"></div></div>
+      <p class="desc" style="margin: 0;">一覧をクリックすると、シナリオテキスト一覧から送ったときの見え方（ココフォリアのメッセージボックスと、チャット欄）と、手直しの欄が出ます。<b>立ち絵は、幅が決まっていて、高さが画像の形で決まります</b>（縦長は大きく、横長は小さく出ます）。</p>
+      <div class="preview-bar">
+        <label>ココフォリアを開く画面の広さ
+          <select id="viewSize" aria-label="ココフォリアを開く画面の広さ">
+            <option value="pc">パソコン（立ち絵の幅 240px）</option>
+            <option value="mid">小さい画面・幅 900px 未満（180px）</option>
+            <option value="phone">スマホ・幅 600px 未満（120px）</option>
+          </select></label>
+        <span id="pvInfo"></span>
+      </div>
+      <div class="stage" id="stage" aria-label="メッセージボックスの見本">
+        <div class="stage-hint" id="stageHint">一覧から 1 件を選ぶと、ここに見え方が出ます</div>
+        <div class="stage-in" id="stageIn">
+          <div class="mbox" id="mbox" hidden>
+            <img class="portrait" id="mboxPortrait" alt="" hidden>
+            <div class="body"><div class="name" id="mboxName"></div><div class="text" id="mboxText"></div></div>
+          </div>
         </div>
+      </div>
+      <div class="logrow" id="logRow" hidden>
+        <span class="cap">チャット欄（ログ）では、約 40px 四方のアイコンになります（縦長は上の部分、横長は中央が切り取られます）</span>
+        <div class="logitem"><img class="logicon" id="logIcon" alt="" hidden><span class="logicon" id="logIconEmpty"></span>
+          <span><span class="logname" id="logName"></span><span class="logtext" id="logText"></span></span></div>
       </div>
       <div class="table-wrap">
         <table>
@@ -367,12 +399,12 @@
   ブラウザだけで動く無料ツールです。作ったデータは自由に使えます。<br>
   ココフォリアのデータの形が変わると、読み込めなくなることがあります。いずれのサービスとも関係のない<strong>非公式</strong>のツールです。<br>
   <a href="https://shiki365.github.io/">ほかのツールも見る（shiki365 のツール置き場）</a> ・ <a href="https://shiki365.github.io/#contact">不具合の報告・感想</a> ・ <a href="https://marshmallow-qa.com/jisg2c3imbza76d">ほしいツールの要望（マシュマロ）</a> ・ <a href="https://sabunomisogi.booth.pm/items/8891048">開発を応援する（BOOTH）</a><br>
-  v1.2 ・ 最終更新 2026-10-03
+  v1.3 ・ 最終更新 2026-10-03
 </footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="parse.v1.js?v=1"></script>
 <script src="roomdata.v1.js?v=2"></script>
-<script src="app.v1.js?v=3"></script>
+<script src="app.v1.js?v=4"></script>
 </body>
 </html>

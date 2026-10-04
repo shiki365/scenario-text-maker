@@ -776,10 +776,54 @@
     $("#editedNote").hidden = !state.edited;
   }
 
+  // CCFOLIA 1.37.4: the message box is at most 720px wide and its portrait has a fixed width (240px; 180px under 900px,
+  // 120px under 600px of window width) with the height following the image. The box takes the window width minus
+  // 104px. The preview is drawn at that size around the box and scaled down as a whole to fit the card.
+  const VIEWS = { pc: { box: 720, portrait: 240 }, mid: { box: 696, portrait: 180 }, phone: { box: 271, portrait: 120 } };
+  const VIEW_KEY = "ccf-scenario-text-maker.view";
+  let viewSize = "pc";
+  try { const v = localStorage.getItem(VIEW_KEY); if (VIEWS[v]) viewSize = v; } catch (err) { /* private mode */ }
+  let lastStageWidth = 0;
+
+  function layoutPreview() {
+    const stage = $("#stage"), inner = $("#stageIn"), img = $("#mboxPortrait");
+    const e = entries[selected];
+    $("#stageHint").hidden = !!e;
+    if (!e) { inner.style.cssText = ""; stage.style.height = ""; $("#pvInfo").textContent = ""; return; }
+    const v = VIEWS[viewSize];
+    const shown = !img.hidden && img.naturalWidth > 0;
+    const portraitH = shown ? Math.round(v.portrait * img.naturalHeight / img.naturalWidth) : 0;
+    const nativeW = v.box + 48;
+    const nativeH = Math.min(720, Math.max(190, 24 + portraitH + 144 + 24));
+    $("#mbox").style.width = v.box + "px";
+    img.style.width = v.portrait + "px";
+    inner.style.width = nativeW + "px";
+    inner.style.height = nativeH + "px";
+    const s = Math.min(1, stage.clientWidth / nativeW);
+    inner.style.transform = `translateX(-50%) scale(${s})`;
+    stage.style.height = Math.round(nativeH * s) + "px";
+    lastStageWidth = stage.clientWidth;
+    const info = [];
+    if (shown) {
+      info.push(`立ち絵は 幅 ${v.portrait}px × 高さ ${portraitH}px で出ます（元の画像 ${img.naturalWidth}×${img.naturalHeight}）。`);
+      const aspect = img.naturalHeight / img.naturalWidth;
+      if (aspect < 0.75) info.push("横長の画像は、幅が決まっているので小さく出ます。");
+      else if (portraitH > 560) info.push("縦に長い画像は、画面の高さによって、上が切れます。");
+    } else if (!img.hidden && !img.complete) {
+      info.push("画像を読み込んでいます…");
+    } else if (!img.hidden) {
+      info.push("画像を読み込めませんでした（URL の画像は、リンク切れのことがあります）。");
+    } else {
+      info.push("この件に画像はありません。");
+    }
+    $("#pvInfo").textContent = info.join("");
+  }
+
   function renderPreview() {
     const e = entries[selected];
     $("#mbox").hidden = !e;
-    if (!e) return;
+    $("#logRow").hidden = !e;
+    if (!e) { layoutPreview(); return; }
     const src = imageSrc(imageOf(e));
     const img = $("#mboxPortrait");
     img.hidden = !src;
@@ -788,7 +832,22 @@
     const shown = titleOf(e);
     name.textContent = shown || "（送るときの名前の欄の名前）";
     name.classList.toggle("empty", !shown);
+    if (!name.querySelector(".btns")) {
+      const b = document.createElement("span");
+      b.className = "btns";
+      b.setAttribute("aria-hidden", "true");
+      b.textContent = "▸ ✕";
+      name.append(b);
+    }
     $("#mboxText").textContent = e.text;
+    // the chat log
+    const icon = $("#logIcon");
+    icon.hidden = !src;
+    $("#logIconEmpty").hidden = !!src;
+    if (src) icon.src = src;
+    $("#logName").textContent = shown || "（名前の欄の名前）";
+    $("#logText").textContent = e.text;
+    layoutPreview();
   }
 
   // ---------------------------------------------------------------- hand edits
@@ -1214,6 +1273,16 @@
     });
     $("#addUrl").addEventListener("click", () => { if (addUrl()) { update(); status("URL の画像を置き場に入れました。"); } });
     $("#makeFromImages").addEventListener("click", makeFromImages);
+    // preview: screen width choice, re-layout when the image loads or the card is resized
+    $("#viewSize").value = viewSize;
+    $("#viewSize").addEventListener("change", ev => {
+      viewSize = VIEWS[ev.target.value] ? ev.target.value : "pc";
+      try { localStorage.setItem(VIEW_KEY, viewSize); } catch (err) { /* private mode */ }
+      layoutPreview();
+    });
+    $("#mboxPortrait").addEventListener("load", layoutPreview);
+    $("#mboxPortrait").addEventListener("error", layoutPreview);
+    if (window.ResizeObserver) new ResizeObserver(() => { if ($("#stage").clientWidth !== lastStageWidth) layoutPreview(); }).observe($("#stage"));
     // A file dropped outside a drop area would make the browser leave the page to show it.
     window.addEventListener("dragover", ev => { if (hasFiles(ev)) ev.preventDefault(); });
     window.addEventListener("drop", ev => { if (hasFiles(ev) && !ev.defaultPrevented) { ev.preventDefault(); status("画像は「画像の置き場」の枠か、話し手の画像の所にドロップしてください。", true); } });
