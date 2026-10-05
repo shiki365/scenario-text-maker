@@ -1,7 +1,10 @@
 <!doctype html>
-<html lang="ja">
+<html lang="ja" data-langs="ja en ko">
 <head>
 <meta charset="utf-8">
+<script src="i18n.v1.js"></script>
+<script src="lang.en.v1.js"></script>
+<script src="lang.ko.v1.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>シナリオテキストメーカー | ココフォリア</title>
 <meta name="description" content="台本や描写の文章を貼ると、ココフォリアのシナリオテキストをまとめて作ります。台詞には話し手の立ち絵（表情の差分も）を付けられ、シナリオテキストから送るだけでメッセージボックスに立ち絵が出ます。">
@@ -113,7 +116,7 @@
 
   /* script and results */
   .stack { display: grid; gap: 14px; min-width: 0; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 10px; min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
   .card > h2 { margin: 0; font-size: 13px; }
   .card-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
   textarea#script { min-height: 220px; resize: vertical; line-height: 1.7; font-family: "BIZ UDGothic", "Yu Gothic UI", "Meiryo", monospace; }
@@ -123,7 +126,7 @@
   /* The preview is drawn at CCFOLIA's own size (message box max 720px, portrait width fixed, height by the image's shape)
      and scaled down as a whole when the card is narrower. */
   .preview-bar { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; justify-content: space-between; }
-  .preview-bar label { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
+  .preview-bar label { display: flex; flex-wrap: wrap; gap: 4px 8px; min-width: 0; align-items: center; color: var(--muted); font-size: 12px; }
   .preview-bar select { width: auto; max-width: 100%; padding: 4px 8px; font-size: 12px; }
   #pvInfo { color: var(--muted); font-size: 12px; line-height: 1.6; }
   .stage { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); min-height: 110px;
@@ -176,14 +179,14 @@
   details.batch li img { width: 16px; height: 22px; object-fit: contain; vertical-align: middle; margin-right: 4px; }
   .edited-note { border: 1px solid #3f4470; background: #1f2135; border-radius: 8px; padding: 8px 10px; color: #c9ccff; font-size: 12px;
                  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
-  .editor { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; background: #191a21; }
+  .editor { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; background: #191a21; }
   .editor h3 { margin: 0; font-size: 12px; color: var(--muted); font-weight: 400; }
   .editor .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .editor .ed-image { grid-column: 1 / -1; display: grid; gap: 2px; }
+  .editor .ed-image { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .editor.over { border-color: var(--accent); }
-  .editor label { display: grid; gap: 2px; color: var(--muted); font-size: 11px; }
+  .editor label { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; color: var(--muted); font-size: 11px; }
   .editor textarea { min-height: 70px; resize: vertical; line-height: 1.6; }
-  @media (max-width: 560px) { .editor .grid { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .editor .grid { grid-template-columns: minmax(0, 1fr); } }
   .summary b { color: var(--fg); }
   .status { color: var(--muted); font-size: 12px; min-height: 1.4em; margin: 0; }
   .status.error { color: #ff8f8f; }
@@ -196,7 +199,11 @@
   .note .warn { color: var(--warn); }
   footer { border-top: 1px solid var(--line); padding: 16px 24px 40px; color: var(--muted); font-size: 12px; line-height: 1.9; }
   footer a { color: #a8abff; }
-  .home-link { display: inline-block; margin-bottom: 4px; color: var(--muted); font-size: 12px; text-decoration: none; }
+  .topline { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 16px; margin-bottom: 4px; }
+  .lang-switch { margin: 0; color: var(--muted); font-size: 12px; }
+  .lang-switch a { color: #a8abff; }
+  .lang-switch a[aria-current] { color: var(--fg); font-weight: 700; text-decoration: none; }
+  .home-link { display: inline-block; color: var(--muted); font-size: 12px; text-decoration: none; }
   .home-link:hover { color: var(--fg); text-decoration: underline; }
   .home-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
@@ -204,7 +211,10 @@
 <body>
 
 <header>
-  <a class="home-link" href="https://shiki365.github.io/">‹ shiki365 のツール置き場</a>
+  <div class="topline">
+    <a class="home-link" href="https://shiki365.github.io/">‹ shiki365 のツール置き場</a>
+    <p class="lang-switch" data-lang-switch></p>
+  </div>
   <h1>シナリオテキストメーカー</h1>
   <p>台本や描写の文章を貼ると、ココフォリアの「シナリオテキスト」をまとめて作ります。できたファイルをルームデータとして読み込むだけで、シナリオテキスト一覧に並びます。台詞には話し手の立ち絵（表情の差分も）を、描写やハンドアウトには 1 件ずつ好きな画像を付けられ、シナリオテキストから送るとメッセージボックスに画像が出ます。すべてブラウザの中だけで処理され、入力した内容や画像がどこかに送られることはありません。マシュマロでいただいた要望から生まれたツールです。</p>
 </header>
@@ -221,7 +231,7 @@
 
     <fieldset>
       <legend>画像の置き場（<span id="imageCount">0</span> 枚）</legend>
-      <p class="desc">立ち絵やハンドアウトの絵をここに入れておくと、話し手の立ち絵や、1 件ずつの画像としてプルダウンで選べます。<b>画像の名前と同じ見出しや話し手には、自動でその画像が付きます</b>（「■鍵」と書けば、「鍵」という名前の画像）。画像ごとに「出典・作者」のメモも付けられます（まとめて保存する一覧に入ります）。画像はこのブラウザの中に保存されます。</p>
+      <p class="desc" data-i18n>立ち絵やハンドアウトの絵をここに入れておくと、話し手の立ち絵や、1 件ずつの画像としてプルダウンで選べます。<b>画像の名前と同じ見出しや話し手には、自動でその画像が付きます</b>（「■鍵」と書けば、「鍵」という名前の画像）。画像ごとに「出典・作者」のメモも付けられます（まとめて保存する一覧に入ります）。画像はこのブラウザの中に保存されます。</p>
       <div class="drop" id="drop" role="button" tabindex="0">ここに画像をドラッグ＆ドロップ／クリックして選ぶ（何枚でも）<br><span>PNG・JPEG・GIF・WebP　1 枚 5 MB まで</span></div>
       <div class="btns" style="margin-top: 8px;"><button type="button" class="small" id="addUrl">URL で追加</button><button type="button" class="small" id="makeFromImages" title="置き場の画像 1 枚につき、シナリオテキストを 1 件、一覧の最後に足します">画像ごとに 1 件作る</button></div>
       <div class="gallery" id="gallery"></div>
@@ -229,7 +239,7 @@
 
     <fieldset>
       <legend>話し手（立ち絵）</legend>
-      <p class="desc">人物と立ち絵を登録します（立ち絵がいらなければ、登録しなくても作れます）。<b>名前</b>は、ココフォリアで送ったときに表示される名前（シナリオテキストのタイトル）になります。立ち絵は置き場の画像から選ぶか、「＋ 画像」で追加します（左の枠に画像をドロップしても設定できます）。表情ごとの画像は「差分」に登録するか、置き場に「アリス_笑顔」のような名前で入れて「置き場から差分を作る」を押します。立ち絵から、シルエット・セピアなどの<b>演出差分</b>も作れます（立ち絵を加工するので、描いた人が加工を認めている立ち絵だけに使ってください。動く画像は最初のコマだけ）。台本に「アリス（笑顔）「…」」か「アリス@笑顔「…」」と書くと切り替わります。</p>
+      <p class="desc" data-i18n>人物と立ち絵を登録します（立ち絵がいらなければ、登録しなくても作れます）。<b>名前</b>は、ココフォリアで送ったときに表示される名前（シナリオテキストのタイトル）になります。立ち絵は置き場の画像から選ぶか、「＋ 画像」で追加します（左の枠に画像をドロップしても設定できます）。表情ごとの画像は「差分」に登録するか、置き場に「アリス_笑顔」のような名前で入れて「置き場から差分を作る」を押します。立ち絵から、シルエット・セピアなどの<b>演出差分</b>も作れます（立ち絵を加工するので、描いた人が加工を認めている立ち絵だけに使ってください。動く画像は最初のコマだけ）。台本に「アリス（笑顔）「…」」か「アリス@笑顔「…」」と書くと切り替わります。</p>
       <div class="speakers" id="speakers"></div>
       <div class="btns" style="margin-top: 10px;"><button type="button" id="addSpeaker">＋ 話し手を追加</button></div>
       <div class="row"><label></label><label class="check"><input type="checkbox" data-opt="faceInTitle"> 差分の名前をタイトルにも付ける（例: アリス（笑顔））</label></div>
@@ -291,7 +301,7 @@
         <span>一覧を手直ししています。文章や読み取り方を変えても、一覧はこのままです。</span>
         <button type="button" class="small" id="rebuild">文章から作り直す</button>
       </div>
-      <p class="desc" style="margin: 0;">一覧をクリックすると、シナリオテキスト一覧から送ったときの見え方（ココフォリアのメッセージボックスと、チャット欄）と、手直しの欄が出ます。<b>立ち絵は、幅が決まっていて、高さが画像の形で決まります</b>（縦長は大きく、横長は小さく出ます）。</p>
+      <p class="desc" style="margin: 0;" data-i18n>一覧をクリックすると、シナリオテキスト一覧から送ったときの見え方（ココフォリアのメッセージボックスと、チャット欄）と、手直しの欄が出ます。<b>立ち絵は、幅が決まっていて、高さが画像の形で決まります</b>（縦長は大きく、横長は小さく出ます）。</p>
       <div class="preview-bar">
         <label>ココフォリアを開く画面の広さ
           <select id="viewSize" aria-label="ココフォリアを開く画面の広さ">
@@ -370,22 +380,22 @@
       <div class="note">
         <h2 style="margin-top: 0;">ココフォリアでの読み込みかた</h2>
         <ol>
-          <li>ルームに <b>GM（ルームマスター・サブルームマスター）</b>として入る。ゲストのログインでは読み込めません</li>
+          <li data-i18n>ルームに <b>GM（ルームマスター・サブルームマスター）</b>として入る。ゲストのログインでは読み込めません</li>
           <li>左上のルーム名 →「ルーム設定」→「ルームデータ」→「ルームデータのインポート」の「インポート」で、書き出した ZIP を選ぶ（盤面に ZIP をドラッグ＆ドロップしても読み込めます）</li>
-          <li>「外部ツールで作成および編集されたデータです。信頼できるデータのみ取り込むようにしてください。」と出るので、このツールで作ったものなら OK。<b>このツールのデータは、いつもこの確認が出ます</b></li>
+          <li data-i18n>「外部ツールで作成および編集されたデータです。信頼できるデータのみ取り込むようにしてください。」と出るので、このツールで作ったものなら OK。<b>このツールのデータは、いつもこの確認が出ます</b></li>
           <li>上のメニューの「[GM] シナリオテキスト一覧」に、台本の順に並んでいます。開いて「送信」すると、タイトルの名前で送られ、メッセージボックスに立ち絵が出ます</li>
         </ol>
         <h2>知っておいてほしいこと</h2>
         <ul>
-          <li>読み込むとシナリオテキストが<b>追加</b>されます。すでにあるシナリオテキストやキャラクター、盤面は変わりません。いらなくなったら、シナリオテキスト一覧から削除してください</li>
+          <li data-i18n>読み込むとシナリオテキストが<b>追加</b>されます。すでにあるシナリオテキストやキャラクター、盤面は変わりません。いらなくなったら、シナリオテキスト一覧から削除してください</li>
           <li>立ち絵が出るのは、シナリオテキスト一覧から「送信」したときです。送信欄に打って送ると、ふつうの発言（名前の欄のキャラクター）になります</li>
           <li>置き場の画像は、このブラウザの中にだけ保存されます（ブラウザのサイトデータを消すと消えます）。大事なものは「プロジェクトを保存」でファイルにも残してください</li>
-          <li>画像は読み込んだときにココフォリアへアップロードされます（ルームデータの画像と同じ共有の置き場）。<b>ほかの人の立ち絵を使うときは、描いた人の許可の範囲で</b></li>
+          <li data-i18n>画像は読み込んだときにココフォリアへアップロードされます（ルームデータの画像と同じ共有の置き場）。<b>ほかの人の立ち絵を使うときは、描いた人の許可の範囲で</b></li>
           <li>自分で作ったルームで使ってください。購入したシナリオ（CCFOLIA GAMES など）のルームデータは、改変が禁止されています</li>
           <li class="warn">ココフォリアの非公式のツールです。ココフォリアのアップデートで、読み込めなくなることがあります</li>
         </ul>
         <h2>OBS に映すなら</h2>
-        <p>メッセージボックスを配信画面に映すには、<a href="https://shiki365.github.io/message-box-maker/">メッセージボックスメーカー</a>で作ったカスタム CSS と組み合わせてください。</p>
+        <p data-i18n>メッセージボックスを配信画面に映すには、<a href="https://shiki365.github.io/message-box-maker/">メッセージボックスメーカー</a>で作ったカスタム CSS と組み合わせてください。</p>
       </div>
     </section>
   </div>
@@ -397,14 +407,14 @@
 
 <footer>
   ブラウザだけで動く無料ツールです。作ったデータは自由に使えます。<br>
-  ココフォリアのデータの形が変わると、読み込めなくなることがあります。いずれのサービスとも関係のない<strong>非公式</strong>のツールです。<br>
+  <span data-i18n>ココフォリアのデータの形が変わると、読み込めなくなることがあります。いずれのサービスとも関係のない<strong>非公式</strong>のツールです。</span><br>
   <a href="https://shiki365.github.io/">ほかのツールも見る（shiki365 のツール置き場）</a> ・ <a href="https://shiki365.github.io/#contact">不具合の報告・感想</a> ・ <a href="https://marshmallow-qa.com/jisg2c3imbza76d">ほしいツールの要望（マシュマロ）</a> ・ <a href="https://sabunomisogi.booth.pm/items/8891048">開発を応援する（BOOTH）</a><br>
-  v1.3 ・ 最終更新 2026-10-03
+  <span>v1.4</span> ・ <span>最終更新</span> 2026-10-05
 </footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="parse.v1.js?v=1"></script>
+<script src="parse.v1.js?v=2"></script>
 <script src="roomdata.v1.js?v=2"></script>
-<script src="app.v1.js?v=4"></script>
+<script src="app.v1.js?v=5"></script>
 </body>
 </html>

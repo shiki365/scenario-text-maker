@@ -13,11 +13,17 @@
  *
  * Style "auto" accepts a colon line only for registered speakers, so narration such as
  * 「時刻：21時」 is not taken for a speaker named 時刻.
+ *
+ * opts.quotes "all" (the page in another language than Japanese) also reads Alice "Hello" and
+ * Alice “Hello” as dialogue. "ja", the default, reads 「」 and 『』 only, exactly as before.
  */
 (function (root) {
   "use strict";
 
   const QUOTE = /^\s*([^\s「」『』][^「」『』]*?)\s*([「『][\s\S]*[」』])\s*$/;
+  const QUOTE_ALL = /^\s*([^\s「」『』"“”][^「」『』"“”]*?)\s*([「『"“][\s\S]*[」』"”])\s*$/;
+  // With Latin quotes a long run of words before the quote is a sentence, not a name.
+  const MAX_NAME_WORDS = 4;
   const COLON = /^\s*([^\s：:「」『』][^：:「」『』]*?)\s*[：:]\s*([\s\S]+?)\s*$/;
   // Sentence punctuation means the part before the quote is prose, not a name.
   const PROSE = /[。、，．！？!?…]/;
@@ -54,17 +60,20 @@
   }
 
   // Open quotes minus closed ones, so a line that opens 「 without closing it continues below.
-  const openQuotes = s => (s.match(/[「『]/g) || []).length - (s.match(/[」』]/g) || []).length;
+  // A straight quote has no direction: an odd number of them means one is still open.
+  const count = (s, re) => (s.match(re) || []).length;
+  const openQuotes = (s, all) => count(s, /[「『]/g) - count(s, /[」』]/g)
+    + (all ? count(s, /“/g) - count(s, /”/g) + count(s, /"/g) % 2 : 0);
 
   // One line each (a quote left open keeps taking the following lines), or runs of non-blank
   // lines ("block"). line = 1-based line number of the start.
-  function units(script, unit) {
+  function units(script, unit, all) {
     const lines = String(script || "").replace(/\r\n?/g, "\n").split("\n");
     const out = [];
     let cur = null, joined = 0;
     lines.forEach((raw, i) => {
       const text = raw.replace(/\s+$/, "");
-      const open = cur && (unit === "block" ? text.trim() !== "" : openQuotes(cur.text) > 0 && joined < MAX_JOIN);
+      const open = cur && (unit === "block" ? text.trim() !== "" : openQuotes(cur.text, all) > 0 && joined < MAX_JOIN);
       if (open) { cur.text += "\n" + text; joined++; return; }
       if (!text.trim()) { cur = null; return; }
       cur = { text, line: i + 1 };
@@ -75,10 +84,11 @@
   }
 
   // -> { name, quote | text } or null
-  function splitSpeaker(src, style, index) {
+  function splitSpeaker(src, style, index, all) {
     if (style !== "colon") {
-      const m = QUOTE.exec(src);
-      if (m && m[1].length <= MAX_NAME && !PROSE.test(m[1])) return { name: m[1].trim(), quote: m[2] };
+      const m = (all ? QUOTE_ALL : QUOTE).exec(src);
+      const wordy = all && m && /^["“]/.test(m[2]) && m[1].trim().split(/\s+/).length > MAX_NAME_WORDS;
+      if (m && m[1].length <= MAX_NAME && !PROSE.test(m[1]) && !wordy) return { name: m[1].trim(), quote: m[2] };
     }
     if (style !== "quote") {
       const m = COLON.exec(src);
@@ -98,8 +108,9 @@
 
   function parseScript(script, index, o) {
     const entries = [];
-    for (const u of units(script, o.unit)) {
-      const found = splitSpeaker(u.text, o.style, index);
+    const all = o.quotes === "all";
+    for (const u of units(script, o.unit, all)) {
+      const found = splitSpeaker(u.text, o.style, index, all);
       if (found) {
         const text = found.quote != null ? (o.keepQuotes ? found.quote : found.quote.slice(1, -1)) : found.text;
         const hit = resolve(found.name, index);
@@ -146,12 +157,13 @@
 
   /**
    * opts: { mode: "script" | "heading", unit: "line" | "block", style: "auto" | "quote" | "colon",
-   *         keepQuotes: boolean, narration: "include" | "skip", narratorName: string }
+   *         keepQuotes: boolean, narration: "include" | "skip", narratorName: string,
+   *         quotes: "ja" | "all" }
    * -> [{ kind: "speaker" | "unknown" | "narration" | "heading", title, text, speakerId, face,
    *       faceMissing, name, line, bare? }]
    */
   function parse(script, speakers, opts) {
-    const o = Object.assign({ mode: "script", unit: "line", style: "auto", keepQuotes: true, narration: "include", narratorName: "" }, opts);
+    const o = Object.assign({ mode: "script", unit: "line", style: "auto", keepQuotes: true, narration: "include", narratorName: "", quotes: "ja" }, opts);
     const index = speakerIndex(speakers);
     return o.mode === "heading" ? parseHeadings(script, index, o) : parseScript(script, index, o);
   }

@@ -22,37 +22,45 @@
 (function () {
   "use strict";
 
+  // Texts are written in Japanese and go through t() (i18n.v1.js); the Japanese text is the key.
+  const t = (text, vars) => (window.I18n ? window.I18n.t(text, vars)
+    : vars ? text.replace(/\{(\w+)\}/g, (all, name) => (name in vars ? String(vars[name]) : all)) : text);
+  const LANG = window.I18n ? window.I18n.lang : "ja";
+  const LOCALE = { ja: "ja-JP", en: "en-US", ko: "ko-KR" }[LANG] || "ja-JP";
+  // In other languages a script also writes dialogue as Alice "Hello" (see parse.v1.js).
+  const QUOTES = LANG === "ja" ? "ja" : "all";
+  // "アリス（笑顔）": a title or file name that carries a face, in the page's language.
+  const withFace = (title, face) => t("{title}（{face}）", { title, face });
+  // Joins a list of names: "、" in Japanese.
+  const listOf = parts => parts.join(t("、"));
+
   const P = window.StParse, R = window.StRoomData;
   const $ = sel => document.querySelector(sel);
 
   const SAVE_KEY = "ccf-scenario-text-maker.state";
   const MAX_IMAGE = 5 * 1024 * 1024; // CCFOLIA's upload limit for images
   const SAMPLES = {
-    script: [
-      "アリス「ねえ、この屋敷、本当に誰も住んでいないの？」",
-      "ボブ「そのはずだよ。十年前から空き家だって」",
-      "扉の向こうから、かすかに足音が聞こえる。",
-      "アリス（不安）「……今の、聞こえた？」",
-      "ボブ：気のせいだと思いたいね",
-    ].join("\n"),
-    heading: [
-      "■図書館",
-      "古い新聞が棚にぎっしりと並んでいる。",
-      "〈図書館〉に成功すると、十年前の火事の記事が見つかる。",
-      "",
-      "■書斎",
-      "机の上に、鍵のかかった小箱がひとつ置かれている。",
-      "",
-      "■アリス",
-      "（アリスからの手紙）明日の夜、屋敷の裏口で待っています。",
-    ].join("\n"),
+    script: `アリス「ねえ、この屋敷、本当に誰も住んでいないの？」
+ボブ「そのはずだよ。十年前から空き家だって」
+扉の向こうから、かすかに足音が聞こえる。
+アリス（不安）「……今の、聞こえた？」
+ボブ：気のせいだと思いたいね`,
+    heading: `■図書館
+古い新聞が棚にぎっしりと並んでいる。
+〈図書館〉に成功すると、十年前の火事の記事が見つかる。
+
+■書斎
+机の上に、鍵のかかった小箱がひとつ置かれている。
+
+■アリス
+（アリスからの手紙）明日の夜、屋敷の裏口で待っています。`,
   };
 
   const uid = p => p + Math.random().toString(36).slice(2, 10);
   const defaultOpts = () => ({ mode: "script", unit: "line", style: "auto", keepQuotes: true, narration: "include", narratorName: "", faceInTitle: false });
   const newSpeaker = name => ({ id: uid("s"), name: name || "", aliases: "", imageId: null, faces: [] });
   const newFace = label => ({ id: uid("f"), label: label || "", imageId: null });
-  const defaultState = () => ({ images: [], speakers: [newSpeaker("アリス"), newSpeaker("ボブ")], script: "", opts: defaultOpts(), edited: null, confirmed: [] });
+  const defaultState = () => ({ images: [], speakers: [newSpeaker(t("アリス")), newSpeaker(t("ボブ"))], script: "", opts: defaultOpts(), edited: null, confirmed: [] });
 
   let state = defaultState();
   let entries = [];
@@ -103,7 +111,7 @@
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(state));
     } catch (err) {
-      status("ブラウザに自動保存できませんでした。「プロジェクトを保存」でファイルに残してください。", true);
+      status(t("ブラウザに自動保存できませんでした。「プロジェクトを保存」でファイルに残してください。"), true);
     }
   }
   function scheduleSave() {
@@ -166,7 +174,7 @@
     });
   }
 
-  const warnNotStored = () => status("画像をブラウザに保存できませんでした。このページを閉じると消えるので、「プロジェクトを保存」でファイルに残してください。", true);
+  const warnNotStored = () => status(t("画像をブラウザに保存できませんでした。このページを閉じると消えるので、「プロジェクトを保存」でファイルに残してください。"), true);
   function storeBlob(id, blob) { return dbRun("readwrite", s => s.put(blob, id)).catch(warnNotStored); }
 
   function holdBlob(id, blob) {
@@ -197,7 +205,7 @@
     try { return R.hex(await crypto.subtle.digest("SHA-256", await blob.arrayBuffer())); } catch (err) { return ""; }
   }
 
-  const baseName = n => String(n || "").replace(/\.[^.]+$/, "") || "画像";
+  const baseName = n => String(n || "").replace(/\.[^.]+$/, "") || t("画像");
   const blobToDataUrl = blob => new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(r.result);
@@ -214,7 +222,7 @@
     const seen = new Map(); // data url or url -> image, so one portrait used twice becomes one image
     const fromData = (meta, dataUrl) => {
       const { type, bytes } = R.dataUrlBytes(dataUrl);
-      const im = { id: String(meta.id || uid("i")), kind: "file", name: String(meta.name || "画像"), type, size: bytes.length, hash: String(meta.hash || ""), credit: String(meta.credit || "") };
+      const im = { id: String(meta.id || uid("i")), kind: "file", name: String(meta.name || t("画像")), type, size: bytes.length, hash: String(meta.hash || ""), credit: String(meta.credit || "") };
       holdBlob(im.id, new Blob([bytes], { type }));
       lifted.push(im);
       return im;
@@ -254,8 +262,8 @@
   function urlName(url) {
     try {
       const last = new URL(url).pathname.split("/").filter(Boolean).pop();
-      return last ? baseName(decodeURIComponent(last)) : "URL の画像";
-    } catch (err) { return "URL の画像"; }
+      return last ? baseName(decodeURIComponent(last)) : t("URL の画像");
+    } catch (err) { return t("URL の画像"); }
   }
 
   // Put files on the shelf. -> their ids, in order (a file already there gives the existing id).
@@ -277,20 +285,20 @@
     if (ids.length) saveNow();
     const added = ids.length - same;
     const parts = [];
-    if (added) parts.push(`画像を ${added} 枚、置き場に入れました。`);
-    if (added && !db) parts.push("ただし、このブラウザでは画像を保存できないので、閉じる前に「プロジェクトを保存」でファイルに残してください。");
-    if (same) parts.push(`${same} 枚は置き場にある画像と同じなので、それを使います。`);
-    if (bad) parts.push(`${bad} 個は使えない形式でした（PNG・JPEG・GIF・WebP が使えます）。`);
-    if (big) parts.push(`${big} 枚は 5 MB を超えています。ココフォリアで読み込めないことがあるので、小さくしてから使ってください。`);
+    if (added) parts.push(t("画像を {n} 枚、置き場に入れました。", { n: added }));
+    if (added && !db) parts.push(t("ただし、このブラウザでは画像を保存できないので、閉じる前に「プロジェクトを保存」でファイルに残してください。"));
+    if (same) parts.push(t("{n} 枚は置き場にある画像と同じなので、それを使います。", { n: same }));
+    if (bad) parts.push(t("{n} 個は使えない形式でした（PNG・JPEG・GIF・WebP が使えます）。", { n: bad }));
+    if (big) parts.push(t("{n} 枚は 5 MB を超えています。ココフォリアで読み込めないことがあるので、小さくしてから使ってください。", { n: big }));
     if (parts.length) status(parts.join(""), !!(bad || big || (added && !db)));
     return ids;
   }
 
   function addUrl() {
-    const url = prompt("画像の URL（https:// から）", "");
+    const url = prompt(t("画像の URL（https:// から）"), "");
     if (url == null) return null;
     const u = url.trim();
-    if (!/^https:\/\/\S+$/.test(u)) { status("URL は https:// から始まるものを入れてください。", true); return null; }
+    if (!/^https:\/\/\S+$/.test(u)) { status(t("URL は https:// から始まるものを入れてください。"), true); return null; }
     let im = state.images.find(x => x.kind === "url" && x.url === u);
     if (!im) { im = { id: uid("i"), kind: "url", name: urlName(u), url: u }; state.images.push(im); }
     return im.id;
@@ -300,8 +308,8 @@
   function usesOf(id) {
     const names = [];
     for (const sp of state.speakers) {
-      if (sp.imageId === id) names.push(sp.name || "名前なし");
-      for (const f of sp.faces) if (f.imageId === id) names.push(`${sp.name || "名前なし"}（${f.label || "差分"}）`);
+      if (sp.imageId === id) names.push(sp.name || t("名前なし"));
+      for (const f of sp.faces) if (f.imageId === id) names.push(withFace(sp.name || t("名前なし"), f.label || t("差分")));
     }
     const lists = [state.edited || []].concat(state.confirmed.map(b => b.entries));
     const count = lists.reduce((n, list) => n + list.filter(e => e.image === id).length, 0);
@@ -311,11 +319,11 @@
   function removeImage(im) {
     const { names, count } = usesOf(im.id);
     const uses = [];
-    if (names.length) uses.push(`話し手・差分: ${names.join("、")}`);
-    if (count) uses.push(`個別に選んだシナリオテキスト ${count} 件`);
+    if (names.length) uses.push(t("話し手・差分: {names}", { names: listOf(names) }));
+    if (count) uses.push(t("個別に選んだシナリオテキスト {n} 件", { n: count }));
     const msg = uses.length
-      ? `「${im.name}」は次の所で使っています。\n${uses.join("\n")}\n\n削除すると、これらは「画像なし」になります。削除しますか？`
-      : `「${im.name}」を置き場から削除しますか？`;
+      ? t("「{name}」は次の所で使っています。", { name: im.name }) + "\n" + uses.join("\n") + "\n\n" + t("削除すると、これらは「画像なし」になります。削除しますか？")
+      : t("「{name}」を置き場から削除しますか？", { name: im.name });
     if (!confirm(msg)) return;
     for (const sp of state.speakers) {
       if (sp.imageId === im.id) sp.imageId = null;
@@ -328,7 +336,7 @@
     dropBlob(im.id);
     update();
     saveNow();
-    status(uses.length ? `削除しました。使っていた所は「画像なし」になりました。` : "削除しました。");
+    status(t(uses.length ? "削除しました。使っていた所は「画像なし」になりました。" : "削除しました。"));
   }
 
   const speakerById = id => state.speakers.find(s => s.id === id);
@@ -363,7 +371,7 @@
   }
   const faceMissing = e => !!(e.face && e.speakerId && !findFace(speakerById(e.speakerId), e.face));
   // The title CCFOLIA shows: アリス, or アリス（笑顔） when faces go into titles.
-  const titleOf = e => !e.titleCustom && e.face && e.speakerId && state.opts.faceInTitle ? `${e.title}（${e.face}）` : e.title;
+  const titleOf = e => !e.titleCustom && e.face && e.speakerId && state.opts.faceInTitle ? withFace(e.title, e.face) : e.title;
 
   const tooBig = img => !!(img && img.kind === "file" && img.size > MAX_IMAGE);
   const missing = img => !!(img && img.kind === "file" && !blobs.has(img.id));
@@ -378,7 +386,7 @@
       el.alt = alt;
       box.append(el);
     } else {
-      box.textContent = "画像なし";
+      box.textContent = t("画像なし");
     }
     return box;
   }
@@ -394,7 +402,7 @@
     return b;
   }
 
-  const imageLabel = im => (im.name || "（名前なし）") + (im.kind === "url" ? "（URL）" : "");
+  const imageLabel = im => (im.name || t("（名前なし）")) + (im.kind === "url" ? t("（URL）") : "");
 
   // Choose one file and put it on the shelf; assign gets its id.
   function pickFile(assign) {
@@ -423,11 +431,11 @@
     row.className = "img-row";
     const sel = document.createElement("select");
     sel.setAttribute("aria-label", label);
-    sel.append(new Option("画像なし", ""));
+    sel.append(new Option(t("画像なし"), ""));
     for (const im of state.images) sel.append(new Option(imageLabel(im), im.id));
     sel.value = imageById(current) ? current : "";
     sel.addEventListener("change", () => assign(sel.value || null));
-    const add = button("＋ 画像", "file", { aria: `${label}にファイルから画像を追加` });
+    const add = button(t("＋ 画像"), "file", { aria: t("{label}にファイルから画像を追加", { label }) });
     add.addEventListener("click", () => pickFile(ids => { if (ids[0]) assign(ids[0]); }));
     row.append(sel, add);
     return row;
@@ -436,8 +444,8 @@
   function warnLine(img) {
     const n = document.createElement("div");
     n.className = "img-note warn";
-    n.textContent = missing(img) ? `「${img.name}」の中身が見つかりません。置き場で入れ直してください`
-      : `「${img.name}」は ${sizeText(img.size)}。5 MB を超えると、ココフォリアで読み込めないことがあります`;
+    n.textContent = missing(img) ? t("「{name}」の中身が見つかりません。置き場で入れ直してください", { name: img.name })
+      : t("「{name}」は {size}。5 MB を超えると、ココフォリアで読み込めないことがあります", { name: img.name, size: sizeText(img.size) });
     return n;
   }
 
@@ -451,7 +459,7 @@
     if (!state.images.length) {
       const p = document.createElement("p");
       p.className = "desc";
-      p.textContent = "まだ画像がありません。";
+      p.textContent = t("まだ画像がありません。");
       box.append(p);
       return;
     }
@@ -460,23 +468,23 @@
       cell.className = "imgcell";
       const src = imageSrc(im);
       if (src) { const img = document.createElement("img"); img.src = src; img.alt = ""; img.loading = "lazy"; cell.append(img); }
-      else { const d = document.createElement("div"); d.className = "noimg"; d.textContent = "中身なし"; cell.append(d); }
+      else { const d = document.createElement("div"); d.className = "noimg"; d.textContent = t("中身なし"); cell.append(d); }
       const name = document.createElement("input");
       name.type = "text";
       name.value = im.name;
-      name.setAttribute("aria-label", "画像の名前");
+      name.setAttribute("aria-label", t("画像の名前"));
       name.addEventListener("input", () => { im.name = name.value; update({ keepGallery: true }); });
       const credit = document.createElement("input");
       credit.type = "text";
       credit.value = im.credit || "";
-      credit.placeholder = "出典・作者（任意）";
-      credit.setAttribute("aria-label", `画像「${im.name}」の出典・作者`);
+      credit.placeholder = t("出典・作者（任意）");
+      credit.setAttribute("aria-label", t("画像「{name}」の出典・作者", { name: im.name }));
       credit.addEventListener("input", () => { im.credit = credit.value; update({ keepGallery: true }); });
       const info = document.createElement("span");
       info.className = "info" + (tooBig(im) || missing(im) ? " warn" : "");
-      info.textContent = im.kind === "url" ? "URL" : missing(im) ? "中身が見つかりません" : sizeText(im.size) + (tooBig(im) ? "（5 MB 超）" : "");
+      info.textContent = im.kind === "url" ? "URL" : missing(im) ? t("中身が見つかりません") : sizeText(im.size) + (tooBig(im) ? t("（5 MB 超）") : "");
       if (im.kind === "url") info.title = im.url;
-      const del = button("削除", "delete-image", { danger: true, aria: `画像「${im.name}」を削除` });
+      const del = button(t("削除"), "delete-image", { danger: true, aria: t("画像「{name}」を削除", { name: im.name }) });
       del.addEventListener("click", () => removeImage(im));
       cell.append(name, credit, info, del);
       box.append(cell);
@@ -492,16 +500,16 @@
       const el = document.createElement("div");
       el.className = "speaker";
       const setSp = id => { sp.imageId = id; update(); };
-      const spThumb = thumb(imageById(sp.imageId), `${sp.name || "話し手"}の立ち絵`);
-      spThumb.title = "画像をここにドロップしても設定できます";
+      const spThumb = thumb(imageById(sp.imageId), t("{name}の立ち絵", { name: sp.name || t("話し手") }));
+      spThumb.title = t("画像をここにドロップしても設定できます");
       dropTarget(spThumb, ids => { if (ids[0]) setSp(ids[0]); });
       el.append(spThumb);
 
       const fields = document.createElement("div");
       fields.className = "fields";
       fields.innerHTML = `
-        <label>名前（タイトル）<input type="text" data-field="name"></label>
-        <label>台本での書き方（ほかにあれば。「、」区切り）<input type="text" data-field="aliases" placeholder="例: ありす、アリー"></label>`;
+        <label>${t("名前（タイトル）")}<input type="text" data-field="name"></label>
+        <label>${t("台本での書き方（ほかにあれば。「、」区切り）")}<input type="text" data-field="aliases" placeholder="${t("例: ありす、アリー")}"></label>`;
       fields.querySelector('[data-field="name"]').value = sp.name;
       fields.querySelector('[data-field="aliases"]').value = sp.aliases;
       fields.addEventListener("input", ev => {
@@ -510,10 +518,10 @@
         sp[f] = ev.target.value;
         update({ keepSpeakers: true });
       });
-      const imgs = imagePicker(sp.imageId, setSp, `${sp.name || "話し手"}の立ち絵`);
-      const del = button("削除", "remove", { danger: true, aria: `${i + 1} 人目の話し手を削除` });
+      const imgs = imagePicker(sp.imageId, setSp, t("{name}の立ち絵", { name: sp.name || t("話し手") }));
+      const del = button(t("削除"), "remove", { danger: true, aria: t("{n} 人目の話し手を削除", { n: i + 1 }) });
       del.addEventListener("click", () => {
-        if ((sp.imageId || sp.faces.length) && !confirm(`「${sp.name || "名前なし"}」を削除しますか？（置き場の画像は残ります）`)) return;
+        if ((sp.imageId || sp.faces.length) && !confirm(t("「{name}」を削除しますか？（置き場の画像は残ります）", { name: sp.name || t("名前なし") }))) return;
         state.speakers = state.speakers.filter(x => x !== sp);
         update();
       });
@@ -529,7 +537,7 @@
         const row = document.createElement("div");
         row.className = "face";
         const setFace = id => { face.imageId = id; update(); };
-        const fThumb = thumb(imageById(face.imageId), `${sp.name}（${face.label}）`);
+        const fThumb = thumb(imageById(face.imageId), withFace(sp.name, face.label));
         dropTarget(fThumb, ids => { if (ids[0]) setFace(ids[0]); });
         row.append(fThumb);
         const inner = document.createElement("div");
@@ -537,11 +545,11 @@
         const lab = document.createElement("input");
         lab.type = "text";
         lab.value = face.label;
-        lab.placeholder = "差分の名前（例: 笑顔）";
-        lab.setAttribute("aria-label", `${sp.name || "話し手"}の差分の名前`);
+        lab.placeholder = t("差分の名前（例: 笑顔）");
+        lab.setAttribute("aria-label", t("{name}の差分の名前", { name: sp.name || t("話し手") }));
         lab.addEventListener("input", () => { face.label = lab.value; update({ keepSpeakers: true }); });
-        const btns = imagePicker(face.imageId, setFace, `差分「${face.label}」の画像`);
-        const rm = button("削除", "remove-face", { danger: true, aria: `差分「${face.label}」を削除` });
+        const btns = imagePicker(face.imageId, setFace, t("差分「{label}」の画像", { label: face.label }));
+        const rm = button(t("削除"), "remove-face", { danger: true, aria: t("差分「{label}」を削除", { label: face.label }) });
         rm.addEventListener("click", () => { sp.faces = sp.faces.filter(f => f !== face); update(); });
         btns.append(rm);
         inner.append(lab, btns);
@@ -550,7 +558,7 @@
         row.append(inner);
         faces.append(row);
       });
-      const addFace = button("＋ 差分（表情）を追加", "add-face");
+      const addFace = button(t("＋ 差分（表情）を追加"), "add-face");
       addFace.addEventListener("click", () => {
         sp.faces.push(newFace(""));
         update();
@@ -562,16 +570,16 @@
       // More faces: from shelf images named like アリス_笑顔, or by an effect on the portrait.
       const tools = document.createElement("div");
       tools.className = "face-tools";
-      const fromNames = button("置き場から差分を作る", "faces-from-names");
-      fromNames.title = `名前が「${sp.name || "話し手の名前"}_笑顔」のような画像を、差分にします`;
+      const fromNames = button(t("置き場から差分を作る"), "faces-from-names");
+      fromNames.title = t("名前が「{name}_笑顔」のような画像を、差分にします", { name: sp.name || t("話し手の名前") });
       fromNames.addEventListener("click", () => facesFromNames(sp));
       const fxSel = document.createElement("select");
-      fxSel.setAttribute("aria-label", `${sp.name || "話し手"}の立ち絵から演出差分を作る`);
-      fxSel.append(new Option("演出差分を作る…", ""));
-      for (const [id, label] of FX) fxSel.append(new Option(label, id));
+      fxSel.setAttribute("aria-label", t("{name}の立ち絵から演出差分を作る", { name: sp.name || t("話し手") }));
+      fxSel.append(new Option(t("演出差分を作る…"), ""));
+      for (const [id, label] of FX) fxSel.append(new Option(t(label), id));
       const src = imageById(sp.imageId);
       fxSel.disabled = !(src && src.kind === "file");
-      fxSel.title = fxSel.disabled ? "ファイルの立ち絵を設定すると使えます（URL の画像は、ブラウザの制限で加工できません）" : "立ち絵を加工して、差分を作ります";
+      fxSel.title = t(fxSel.disabled ? "ファイルの立ち絵を設定すると使えます（URL の画像は、ブラウザの制限で加工できません）" : "立ち絵を加工して、差分を作ります");
       fxSel.addEventListener("change", () => { const v = fxSel.value; fxSel.value = ""; if (v) makeFx(sp, v); });
       tools.append(fromNames, fxSel);
       faces.append(tools);
@@ -585,17 +593,18 @@
 
   // One entry per shelf image that nothing in the list shows yet (title = the image's name).
   function makeFromImages() {
-    if (!state.images.length) { status("置き場に画像がありません。", true); return; }
+    if (!state.images.length) { status(t("置き場に画像がありません。"), true); return; }
     const used = new Set(entries.map(imageOf).filter(Boolean).map(im => im.id));
     const fresh = state.images.filter(im => !used.has(im.id));
-    if (!fresh.length) { status("置き場の画像は、すべて一覧で使われています。", true); return; }
+    if (!fresh.length) { status(t("置き場の画像は、すべて一覧で使われています。"), true); return; }
     ensureEdited();
     const first = state.edited.length;
     for (const im of fresh) state.edited.push(cleanEntry({ kind: "heading", title: im.name, text: "", image: im.id, titleCustom: true }));
     entries = state.edited;
     selected = first;
     update();
-    status(`画像 ${fresh.length} 枚ぶん、シナリオテキストを足しました${used.size ? `（一覧で使っている ${used.size} 枚は飛ばしました）` : ""}。本文が空なので、1 件ずつ入れてください。`);
+    status(t("画像 {n} 枚ぶん、シナリオテキストを足しました", { n: fresh.length })
+      + (used.size ? t("（一覧で使っている {n} 枚は飛ばしました）", { n: used.size }) : "") + t("。本文が空なので、1 件ずつ入れてください。"));
   }
 
   // Shelf images named 話し手_差分 (アリス_笑顔, アリス（笑顔）, アリス@笑顔 ...) become that speaker's faces;
@@ -603,7 +612,7 @@
   const FACE_SEP = /^[\s_\-－@＠（(：:]+/;
   function facesFromNames(sp) {
     const names = [sp.name].concat(String(sp.aliases || "").split(/[,、，]/)).map(P.key).filter(Boolean).sort((a, b) => b.length - a.length);
-    if (!names.length) { status("先に、話し手の名前を入れてください。", true); return; }
+    if (!names.length) { status(t("先に、話し手の名前を入れてください。"), true); return; }
     const made = [];
     let base = false, found = 0;
     for (const im of state.images) {
@@ -621,17 +630,19 @@
       made.push(label);
     }
     if (!made.length && !base) {
-      status(found ? "新しく作れる差分はありません（すでに作ってあります）。" : `名前が「${sp.name}」で始まる画像が見つかりません。画像の名前を「${sp.name}_笑顔」のようにしてください。`, !found);
+      status(found ? t("新しく作れる差分はありません（すでに作ってあります）。")
+        : t("名前が「{name}」で始まる画像が見つかりません。画像の名前を「{name}_笑顔」のようにしてください。", { name: sp.name }), !found);
       return;
     }
     update();
-    status((made.length ? `差分を ${made.length} 個作りました: ${made.join("、")}。` : "") + (base ? "立ち絵も設定しました。" : ""));
+    status((made.length ? t("差分を {n} 個作りました: {names}。", { n: made.length, names: listOf(made) }) : "") + (base ? t("立ち絵も設定しました。") : ""));
   }
 
   // ---------------------------------------------------------------- effect faces
 
   const FX = [["silhouette", "シルエット"], ["sepia", "セピア"], ["mono", "モノクロ"], ["blur", "ぼかし"], ["ghost", "半透明"]];
-  const fxLabel = id => (FX.find(f => f[0] === id) || [])[1] || id;
+  // The effect's name in the page's language becomes the face's label (the user's data from then on).
+  const fxLabel = id => t((FX.find(f => f[0] === id) || [])[1] || id);
 
   async function hasTransparency(blob) {
     const bmp = await createImageBitmap(blob);
@@ -657,7 +668,7 @@
       c.height = bmp.height + pad * 2;
       const g = c.getContext("2d");
       if (fx === "sepia" || fx === "mono" || fx === "blur") {
-        if (!("filter" in g)) throw new Error("このブラウザでは、この効果は使えません");
+        if (!("filter" in g)) throw new Error(t("このブラウザでは、この効果は使えません"));
         g.filter = fx === "sepia" ? "sepia(1)" : fx === "mono" ? "grayscale(1)" : `blur(${Math.max(2, Math.round(small / 80))}px)`;
       }
       if (fx === "ghost") g.globalAlpha = 0.5;
@@ -667,35 +678,36 @@
         g.fillStyle = "#000";
         g.fillRect(0, 0, c.width, c.height);
       }
-      return await new Promise((resolve, reject) => c.toBlob(b => b ? resolve(b) : reject(new Error("画像を書き出せませんでした")), "image/png"));
+      return await new Promise((resolve, reject) => c.toBlob(b => b ? resolve(b) : reject(new Error(t("画像を書き出せませんでした"))), "image/png"));
     } finally { bmp.close(); }
   }
 
   let fxBusy = false;
   async function makeFx(sp, fx) {
     const src = imageById(sp.imageId);
-    if (!src) { status("先に、この話し手の立ち絵を設定してください。", true); return; }
-    if (src.kind !== "file" || !blobs.has(src.id)) { status("URL の画像は、ブラウザの制限で加工できません。ファイルの画像で試してください。", true); return; }
+    if (!src) { status(t("先に、この話し手の立ち絵を設定してください。"), true); return; }
+    if (src.kind !== "file" || !blobs.has(src.id)) { status(t("URL の画像は、ブラウザの制限で加工できません。ファイルの画像で試してください。"), true); return; }
     const label = fxLabel(fx);
-    if (findFace(sp, label)) { status(`すでに「${label}」の差分があります。`, true); return; }
+    if (findFace(sp, label)) { status(t("すでに「{label}」の差分があります。", { label }), true); return; }
     if (fxBusy) return;
     fxBusy = true;
     try {
       const blob = blobs.get(src.id);
       if (fx === "silhouette" && !(await hasTransparency(blob))) {
-        status("この画像は背景が透明ではないので、四角い黒い塊になります。背景が透明な PNG の立ち絵で試してください。", true);
+        status(t("この画像は背景が透明ではないので、四角い黒い塊になります。背景が透明な PNG の立ち絵で試してください。"), true);
         return;
       }
       const out = await drawFx(blob, fx);
-      const [id] = await addFiles([new File([out], `${src.name}（${label}）.png`, { type: "image/png" })]);
+      const [id] = await addFiles([new File([out], withFace(src.name, label) + ".png", { type: "image/png" })]);
       if (!id) return;
       sp.faces.push({ id: uid("f"), label, imageId: id });
       update();
       const big = tooBig(imageById(id));
-      status(`差分「${label}」を作りました（画像は置き場に入っています）。台本に「${sp.name || "名前"}（${label}）「…」」と書くと使えます。` + (big ? "ただし 5 MB を超えています。ココフォリアで読み込めないことがあります。" : ""), big);
+      status(t("差分「{label}」を作りました（画像は置き場に入っています）。台本に「{name}（{label}）「…」」と書くと使えます。", { label, name: sp.name || t("名前") })
+        + (big ? t("ただし 5 MB を超えています。ココフォリアで読み込めないことがあります。") : ""), big);
     } catch (err) {
       console.error(err);
-      status("演出差分を作れませんでした: " + err.message, true);
+      status(t("演出差分を作れませんでした: ") + err.message, true);
     } finally { fxBusy = false; }
   }
 
@@ -714,9 +726,9 @@
     box.hidden = !names.length && !faces.length;
     if (names.length) {
       const p = document.createElement("div");
-      p.append("登録していない話し手がいます（立ち絵なしで、台本の名前のまま送られます）: ");
+      p.append(t("登録していない話し手がいます（立ち絵なしで、台本の名前のまま送られます）: "));
       for (const name of names) {
-        const b = button(`＋「${name}」を話し手に追加`, "add-speaker");
+        const b = button(t("＋「{name}」を話し手に追加", { name }), "add-speaker");
         b.addEventListener("click", () => { state.speakers.push(newSpeaker(name)); update(); });
         p.append(b);
       }
@@ -724,10 +736,10 @@
     }
     if (faces.length) {
       const p = document.createElement("div");
-      p.append("登録していない差分があります（基本の立ち絵で送られます）: ");
+      p.append(t("登録していない差分があります（基本の立ち絵で送られます）: "));
       for (const e of faces) {
         const sp = speakerById(e.speakerId);
-        const b = button(`＋「${sp.name}（${e.face}）」を差分に追加`, "add-face");
+        const b = button(t("＋「{name}」を差分に追加", { name: withFace(sp.name, e.face) }), "add-face");
         b.addEventListener("click", () => { sp.faces.push(newFace(e.face)); update(); });
         p.append(b);
       }
@@ -742,7 +754,7 @@
     body.textContent = "";
     if (!entries.length) {
       const tr = document.createElement("tr");
-      tr.innerHTML = '<td colspan="4" class="empty-list">上に文章を貼ると、ここに 1 件ずつ並びます</td>';
+      tr.innerHTML = `<td colspan="4" class="empty-list">${t("上に文章を貼ると、ここに 1 件ずつ並びます")}</td>`;
       body.append(tr);
     }
     entries.forEach((e, i) => {
@@ -755,14 +767,14 @@
       if (src) { const img = document.createElement("img"); img.src = src; img.alt = ""; tr.children[1].append(img); }
       const title = tr.children[2];
       const shown = titleOf(e);
-      title.textContent = shown || "（名前の欄）";
+      title.textContent = shown || t("（名前の欄）");
       const badge = (cls, text) => { const s = document.createElement("span"); s.className = "badge " + cls; s.textContent = text; title.append(s); };
-      if (e.face && !shown.endsWith(`（${e.face}）`)) badge("face", "差分 " + e.face);
-      if (e.image === "none") badge("narr", "画像なし");
-      else if (e.image && e.image !== "auto") badge("face", "個別の画像");
-      if (e.kind === "unknown" && !e.speakerId) badge("unknown-b", "未登録");
-      if (faceMissing(e)) badge("unknown-b", "差分なし");
-      if (e.kind === "narration") badge("narr", state.opts.mode === "heading" ? "見出しの前" : "地の文");
+      if (e.face && shown !== withFace(e.title, e.face)) badge("face", t("差分 ") + e.face);
+      if (e.image === "none") badge("narr", t("画像なし"));
+      else if (e.image && e.image !== "auto") badge("face", t("個別の画像"));
+      if (e.kind === "unknown" && !e.speakerId) badge("unknown-b", t("未登録"));
+      if (faceMissing(e)) badge("unknown-b", t("差分なし"));
+      if (e.kind === "narration") badge("narr", t(state.opts.mode === "heading" ? "見出しの前" : "地の文"));
       tr.children[3].textContent = e.text;
       const pick = () => { selected = i; renderEntries(); renderPreview(); renderEditor(); };
       tr.addEventListener("click", pick);
@@ -771,7 +783,7 @@
     });
     $("#count").textContent = entries.length;
     const withImage = entries.filter(e => imageOf(e)).length;
-    $("#summary").innerHTML = entries.length ? `画像つき <b>${withImage}</b> 件・なし <b>${entries.length - withImage}</b> 件` : "";
+    $("#summary").innerHTML = entries.length ? t("画像つき <b>{a}</b> 件・なし <b>{b}</b> 件", { a: withImage, b: entries.length - withImage }) : "";
     $("#confirmBatch").disabled = entries.length === 0;
     $("#editedNote").hidden = !state.edited;
   }
@@ -805,16 +817,16 @@
     lastStageWidth = stage.clientWidth;
     const info = [];
     if (shown) {
-      info.push(`立ち絵は 幅 ${v.portrait}px × 高さ ${portraitH}px で出ます（元の画像 ${img.naturalWidth}×${img.naturalHeight}）。`);
+      info.push(t("立ち絵は 幅 {w}px × 高さ {h}px で出ます（元の画像 {iw}×{ih}）。", { w: v.portrait, h: portraitH, iw: img.naturalWidth, ih: img.naturalHeight }));
       const aspect = img.naturalHeight / img.naturalWidth;
-      if (aspect < 0.75) info.push("横長の画像は、幅が決まっているので小さく出ます。");
-      else if (portraitH > 560) info.push("縦に長い画像は、画面の高さによって、上が切れます。");
+      if (aspect < 0.75) info.push(t("横長の画像は、幅が決まっているので小さく出ます。"));
+      else if (portraitH > 560) info.push(t("縦に長い画像は、画面の高さによって、上が切れます。"));
     } else if (!img.hidden && !img.complete) {
-      info.push("画像を読み込んでいます…");
+      info.push(t("画像を読み込んでいます…"));
     } else if (!img.hidden) {
-      info.push("画像を読み込めませんでした（URL の画像は、リンク切れのことがあります）。");
+      info.push(t("画像を読み込めませんでした（URL の画像は、リンク切れのことがあります）。"));
     } else {
-      info.push("この件に画像はありません。");
+      info.push(t("この件に画像はありません。"));
     }
     $("#pvInfo").textContent = info.join("");
   }
@@ -830,7 +842,7 @@
     if (src) img.src = src;
     const name = $("#mboxName");
     const shown = titleOf(e);
-    name.textContent = shown || "（送るときの名前の欄の名前）";
+    name.textContent = shown || t("（送るときの名前の欄の名前）");
     name.classList.toggle("empty", !shown);
     if (!name.querySelector(".btns")) {
       const b = document.createElement("span");
@@ -845,7 +857,7 @@
     icon.hidden = !src;
     $("#logIconEmpty").hidden = !!src;
     if (src) icon.src = src;
-    $("#logName").textContent = shown || "（名前の欄の名前）";
+    $("#logName").textContent = shown || t("（名前の欄の名前）");
     $("#logText").textContent = e.text;
     layoutPreview();
   }
@@ -873,20 +885,20 @@
     $("#edTitle").value = titleOf(e);
     const spSel = $("#edSpeaker");
     spSel.textContent = "";
-    spSel.append(new Option("（立ち絵なし）", ""));
-    for (const sp of state.speakers) spSel.append(new Option(sp.name || "（名前なし）", sp.id));
+    spSel.append(new Option(t("（立ち絵なし）"), ""));
+    for (const sp of state.speakers) spSel.append(new Option(sp.name || t("（名前なし）"), sp.id));
     spSel.value = e.speakerId && speakerById(e.speakerId) ? e.speakerId : "";
     const faceSel = $("#edFace");
     faceSel.textContent = "";
-    faceSel.append(new Option("基本", ""));
+    faceSel.append(new Option(t("基本"), ""));
     const sp = speakerById(spSel.value);
     for (const f of sp ? sp.faces : []) if (f.label) faceSel.append(new Option(f.label, f.label));
-    if (e.face && !findFace(sp, e.face)) faceSel.append(new Option(`${e.face}（未登録）`, e.face));
+    if (e.face && !findFace(sp, e.face)) faceSel.append(new Option(e.face + t("（未登録）"), e.face));
     faceSel.value = e.face || "";
     faceSel.disabled = !sp;
     const imgSel = $("#edImage");
     imgSel.textContent = "";
-    imgSel.append(new Option("自動（話し手・差分・同じ名前の画像）", "auto"), new Option("画像なし", "none"));
+    imgSel.append(new Option(t("自動（話し手・差分・同じ名前の画像）"), "auto"), new Option(t("画像なし"), "none"));
     for (const im of state.images) imgSel.append(new Option(imageLabel(im), im.id));
     imgSel.value = e.image === "none" || imageById(e.image) ? e.image : "auto";
     $("#edText").value = e.text;
@@ -931,7 +943,7 @@
     $("#edDown").addEventListener("click", () => move(1));
     $("#edAdd").addEventListener("click", () => editEntry(list => {
       const base = list[selected];
-      list.splice(selected + 1, 0, cleanEntry(Object.assign({}, base || {}, { text: "（新しいシナリオテキスト）", line: "" })));
+      list.splice(selected + 1, 0, cleanEntry(Object.assign({}, base || {}, { text: t("（新しいシナリオテキスト）"), line: "" })));
       selected += 1;
     }));
     $("#edDelete").addEventListener("click", () => editEntry(list => {
@@ -939,11 +951,11 @@
       if (selected >= list.length) selected = list.length - 1;
     }));
     $("#rebuild").addEventListener("click", () => {
-      if (!confirm("手直しした内容を捨てて、文章から一覧を作り直しますか？")) return;
+      if (!confirm(t("手直しした内容を捨てて、文章から一覧を作り直しますか？"))) return;
       state.edited = null;
       selected = -1;
       update();
-      status("文章から作り直しました。");
+      status(t("文章から作り直しました。"));
     });
   }
 
@@ -957,14 +969,14 @@
     const heading = state.opts.mode === "heading";
     for (const el of document.querySelectorAll("[data-mode]")) el.hidden = el.dataset.mode !== state.opts.mode;
     $("#narratorRow").hidden = !heading && state.opts.narration !== "include";
-    $("#narratorLabel").textContent = heading ? "見出しより前の文の名前" : "地の文の名前";
-    $("#textTitle").textContent = heading ? "本文（見出しで区切る）" : "台本";
-    $("#script").placeholder = heading ? "■図書館\n古い新聞が並んでいる。\n\n■書斎\n机の上に鍵がある。" : "アリス「こんにちは。」\nボブ「やあ。」\n扉の向こうから足音が近づいてくる。";
+    $("#narratorLabel").textContent = t(heading ? "見出しより前の文の名前" : "地の文の名前");
+    $("#textTitle").textContent = t(heading ? "本文（見出しで区切る）" : "台本");
+    $("#script").placeholder = t(heading ? "■図書館\n古い新聞が並んでいる。\n\n■書斎\n机の上に鍵がある。" : "アリス「こんにちは。」\nボブ「やあ。」\n扉の向こうから足音が近づいてくる。");
   }
 
   function update(o) {
     indexNames();
-    entries = state.edited || P.parse(state.script, state.speakers, state.opts);
+    entries = state.edited || P.parse(state.script, state.speakers, Object.assign({}, state.opts, { quotes: QUOTES }));
     if (selected >= entries.length) selected = entries.length - 1;
     if (!(o && (o.keepSpeakers || o.keepGallery))) renderGallery();
     if (!(o && o.keepSpeakers)) renderSpeakers();
@@ -986,7 +998,7 @@
   function batchOf(list) {
     const first = list[0];
     return {
-      id: uid("b"), mode: state.opts.mode, label: snippet((titleOf(first) ? titleOf(first) + "：" : "") + first.text, 28),
+      id: uid("b"), mode: state.opts.mode, label: snippet((titleOf(first) ? titleOf(first) + t("：") : "") + first.text, 28),
       script: state.script, opts: Object.assign({}, state.opts), entries: list.map(cleanEntry), edited: !!state.edited,
     };
   }
@@ -999,7 +1011,7 @@
     state.edited = null;
     $("#script").value = "";
     selected = -1;
-    if (!quiet) status(`確定しました（${state.confirmed.at(-1).entries.length} 件）。次の文章を入れられます。`);
+    if (!quiet) status(t("確定しました（{n} 件）。次の文章を入れられます。", { n: state.confirmed.at(-1).entries.length }));
     return true;
   }
 
@@ -1013,7 +1025,7 @@
     selected = -1;
     syncOpts();
     update({ keepSpeakers: true });
-    status(moved ? "戻しました。入っていた文章は、確定したものの最後に移しました。" : "戻しました。直したら、もう一度「確定」してください。");
+    status(t(moved ? "戻しました。入っていた文章は、確定したものの最後に移しました。" : "戻しました。直したら、もう一度「確定」してください。"));
     window.scrollTo({ top: $("#textTitle").getBoundingClientRect().top + window.scrollY - 20, behavior: "smooth" });
   }
 
@@ -1028,15 +1040,15 @@
       const sum = document.createElement("summary");
       sum.innerHTML = `<span class="num"></span><span class="badge narr"></span><b></b><span class="label"></span>`;
       sum.children[0].textContent = i + 1;
-      sum.children[1].textContent = MODE_NAME[b.mode];
-      sum.children[2].textContent = `${b.entries.length} 件`;
+      sum.children[1].textContent = t(MODE_NAME[b.mode]);
+      sum.children[2].textContent = t("{n} 件", { n: b.entries.length });
       sum.children[3].textContent = b.label;
       const btns = document.createElement("span");
       btns.className = "btns";
-      const up = button("↑", "up", { disabled: i === 0, aria: `${i + 1} 番目を上へ` });
-      const down = button("↓", "down", { disabled: i === state.confirmed.length - 1, aria: `${i + 1} 番目を下へ` });
-      const back = button("戻して直す", "back");
-      const del = button("削除", "delete", { danger: true, aria: `${i + 1} 番目を削除` });
+      const up = button("↑", "up", { disabled: i === 0, aria: t("{n} 番目を上へ", { n: i + 1 }) });
+      const down = button("↓", "down", { disabled: i === state.confirmed.length - 1, aria: t("{n} 番目を下へ", { n: i + 1 }) });
+      const back = button(t("戻して直す"), "back");
+      const del = button(t("削除"), "delete", { danger: true, aria: t("{n} 番目を削除", { n: i + 1 }) });
       btns.append(up, down, back, del);
       btns.addEventListener("click", ev => {
         ev.preventDefault(); // keep the details from toggling
@@ -1047,7 +1059,7 @@
           update({ keepSpeakers: true });
         } else if (act === "back") restoreBatch(i);
         else if (act === "delete") {
-          if (!confirm(`確定した ${i + 1} 番目（${b.entries.length} 件）を削除しますか？`)) return;
+          if (!confirm(t("確定した {n} 番目（{count} 件）を削除しますか？", { n: i + 1, count: b.entries.length }))) return;
           state.confirmed.splice(i, 1);
           update({ keepSpeakers: true });
         }
@@ -1059,9 +1071,9 @@
         const li = document.createElement("li");
         const img = imageSrc(imageOf(e));
         if (img) { const im = document.createElement("img"); im.src = img; im.alt = ""; li.append(im); }
-        const t = document.createElement("b");
-        t.textContent = titleOf(e) || "（名前の欄）";
-        li.append(t, " " + snippet(e.text, 60));
+        const b2 = document.createElement("b");
+        b2.textContent = titleOf(e) || t("（名前の欄）");
+        li.append(b2, " " + snippet(e.text, 60));
         ul.append(li);
       }
       item.append(ul);
@@ -1071,8 +1083,9 @@
     $("#confirmedCount").textContent = done;
     const total = done + entries.length;
     $("#exportSummary").innerHTML = total
-      ? (done ? `確定 <b>${done}</b> 件 ＋ 今の一覧 <b>${entries.length}</b> 件 ＝ <b>${total}</b> 件を 1 つの ZIP に書き出します。` : `今の一覧 <b>${entries.length}</b> 件を ZIP に書き出します。`)
-      : "書き出すシナリオテキストがまだありません。";
+      ? (done ? t("確定 <b>{done}</b> 件 ＋ 今の一覧 <b>{now}</b> 件 ＝ <b>{total}</b> 件を 1 つの ZIP に書き出します。", { done, now: entries.length, total })
+        : t("今の一覧 <b>{now}</b> 件を ZIP に書き出します。", { now: entries.length }))
+      : t("書き出すシナリオテキストがまだありません。");
     $("#exportZip").disabled = total === 0;
     syncBundleButton();
   }
@@ -1093,10 +1106,10 @@
     for (const e of all) {
       const im = imageOf(e);
       if (!im) continue;
-      const t = titleOf(e) || "（名前の欄）";
+      const title = titleOf(e) || t("（名前の欄）");
       if (!use.has(im.id)) use.set(im.id, new Map());
       const m = use.get(im.id);
-      m.set(t, (m.get(t) || 0) + 1);
+      m.set(title, (m.get(title) || 0) + 1);
     }
     return use;
   }
@@ -1107,72 +1120,73 @@
     $("#exportImages").disabled = n === 0;
   }
 
-  const fileSafe = s => String(s || "").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").trim() || "画像";
+  const fileSafe = s => String(s || "").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").trim() || t("画像");
   function usedText(m) {
-    if (!m || !m.size) return "（使っていません）";
-    const parts = [...m].map(([t, n]) => `${t} ×${n}`);
-    return parts.length > 8 ? parts.slice(0, 8).join("、") + `、ほか ${parts.length - 8} 種` : parts.join("、");
+    if (!m || !m.size) return t("（使っていません）");
+    const parts = [...m].map(([title, n]) => `${title} ×${n}`);
+    return parts.length > 8 ? listOf(parts.slice(0, 8)) + t("、ほか {n} 種", { n: parts.length - 8 }) : listOf(parts);
   }
 
   // The images the scenario texts use (or the whole shelf), under readable names, with a list that
   // says where each is used, who made it, and what it is called inside the room data zip.
   async function exportImages() {
-    if (!window.JSZip) { exportStatus("ZIP を作る部品を読み込めませんでした。ネットにつながった状態で開き直してください。", true); return; }
+    if (!window.JSZip) { exportStatus(t("ZIP を作る部品を読み込めませんでした。ネットにつながった状態で開き直してください。"), true); return; }
     const use = usageMap(allEntries());
     const everything = $("#bundleAll").checked;
     const list = state.images.filter(im => everything || use.has(im.id));
-    if (!list.length) { exportStatus("まとめる画像がありません。", true); return; }
+    if (!list.length) { exportStatus(t("まとめる画像がありません。"), true); return; }
     const btn = $("#exportImages");
     btn.disabled = true;
-    exportStatus("ZIP を作っています…");
+    exportStatus(t("ZIP を作っています…"));
     try {
       const zip = new JSZip();
       const taken = new Set();
       const lines = [
-        "シナリオテキストメーカー 画像の一覧",
-        `作成: ${new Date().toLocaleString("ja-JP")}`,
-        `画像 ${list.length} 枚（${everything ? "置き場のすべて" : "シナリオテキストで使っているもの"}）`,
-        "画像ファイルは images フォルダに入っています。",
-        "「ルームデータ内の名前」は、書き出したルームデータ（ZIP）の中での、その画像のファイル名です。",
+        t("シナリオテキストメーカー 画像の一覧"),
+        t("作成: {date}", { date: new Date().toLocaleString(LOCALE) }),
+        t("画像 {n} 枚（{scope}）", { n: list.length, scope: t(everything ? "置き場のすべて" : "シナリオテキストで使っているもの") }),
+        t("画像ファイルは images フォルダに入っています。"),
+        t("「ルームデータ内の名前」は、書き出したルームデータ（ZIP）の中での、その画像のファイル名です。"),
         "",
       ];
       let files = 0, urls = 0, lost = 0, i = 0;
       for (const im of list) {
         i++;
-        const credit = im.credit ? im.credit : "（未記入）";
+        const credit = im.credit ? im.credit : t("（未記入）");
+        const creditLine = t("    出典・作者: {credit}", { credit }), whereLine = () => t("    使っている所: {where}", { where });
         const where = usedText(use.get(im.id));
         if (im.kind === "url") {
           urls++;
-          lines.push(`[${i}] ${im.name}（URL の画像。中身は入っていません）`, `    URL: ${im.url}`, `    出典・作者: ${credit}`, `    使っている所: ${where}`, "");
+          lines.push(`[${i}] ${im.name}` + t("（URL の画像。中身は入っていません）"), `    URL: ${im.url}`, creditLine, whereLine(), "");
           continue;
         }
         const blob = blobs.get(im.id);
         if (!blob) {
           lost++;
-          lines.push(`[${i}] ${im.name}（中身が見つからないので、入っていません）`, `    出典・作者: ${credit}`, `    使っている所: ${where}`, "");
+          lines.push(`[${i}] ${im.name}` + t("（中身が見つからないので、入っていません）"), creditLine, whereLine(), "");
           continue;
         }
         const ext = R.EXT[im.type] || R.EXT[blob.type] || "png";
         const base = fileSafe(im.name);
         let name = base, k = 2;
-        while (taken.has(`${name}.${ext}`.toLowerCase())) name = `${base}（${k++}）`;
+        while (taken.has(`${name}.${ext}`.toLowerCase())) name = base + t("（{n}）", { n: k++ });
         taken.add(`${name}.${ext}`.toLowerCase());
         zip.file(`images/${name}.${ext}`, await blob.arrayBuffer(), { compression: "STORE" });
         files++;
-        lines.push(`[${i}] images/${name}.${ext}`, `    大きさ: ${sizeText(im.size)}（${im.type}）${tooBig(im) ? " ※ 5 MB を超えています" : ""}`);
-        if (im.hash) lines.push(`    ルームデータ内の名前: ${im.hash}.${ext}`);
-        lines.push(`    出典・作者: ${credit}`, `    使っている所: ${where}`, "");
+        lines.push(`[${i}] images/${name}.${ext}`, t("    大きさ: {size}（{type}）", { size: sizeText(im.size), type: im.type }) + (tooBig(im) ? t(" ※ 5 MB を超えています") : ""));
+        if (im.hash) lines.push(t("    ルームデータ内の名前: {name}", { name: `${im.hash}.${ext}` }));
+        lines.push(creditLine, whereLine(), "");
       }
-      zip.file("画像の一覧.txt", lines.join("\r\n"));
+      zip.file(t("画像の一覧.txt"), lines.join("\r\n"));
       const out = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
       const fileName = `scenario-text-images-${stamp()}.zip`;
       download(out, fileName);
-      exportStatus(`画像 ${files} 枚を ${fileName}（${sizeText(out.size)}）にまとめて保存しました。`
-        + (urls ? `URL の画像 ${urls} 件は、一覧に URL だけ書きました。` : "")
-        + (lost ? `中身が見つからない画像が ${lost} 枚あります。` : ""), !!lost);
+      exportStatus(t("画像 {n} 枚を {name}（{size}）にまとめて保存しました。", { n: files, name: fileName, size: sizeText(out.size) })
+        + (urls ? t("URL の画像 {n} 件は、一覧に URL だけ書きました。", { n: urls }) : "")
+        + (lost ? t("中身が見つからない画像が {n} 枚あります。", { n: lost }) : ""), !!lost);
     } catch (err) {
       console.error(err);
-      exportStatus("画像をまとめられませんでした: " + err.message, true);
+      exportStatus(t("画像をまとめられませんでした: ") + err.message, true);
     } finally {
       syncBundleButton();
     }
@@ -1181,18 +1195,19 @@
   async function exportZip() {
     const all = state.confirmed.flatMap(b => b.entries).concat(entries);
     if (!all.length) return;
-    if (!window.JSZip) { exportStatus("ZIP を作る部品を読み込めませんでした。ネットにつながった状態で開き直してください。", true); return; }
-    if (!(window.crypto && crypto.subtle)) { exportStatus("このブラウザでは ZIP を作れません（https のページか、新しい Chrome・Edge で開いてください）。", true); return; }
+    if (!window.JSZip) { exportStatus(t("ZIP を作る部品を読み込めませんでした。ネットにつながった状態で開き直してください。"), true); return; }
+    if (!(window.crypto && crypto.subtle)) { exportStatus(t("このブラウザでは ZIP を作れません（https のページか、新しい Chrome・Edge で開いてください）。"), true); return; }
     const emptyBatch = state.confirmed.findIndex(b => b.entries.some(e => !e.text.trim()));
     const empty = entries.findIndex(e => !e.text.trim());
     if (emptyBatch >= 0 || empty >= 0) {
       if (emptyBatch < 0) { selected = empty; update({ keepSpeakers: true }); }
-      exportStatus(`本文が空のシナリオテキストがあります（${emptyBatch >= 0 ? `確定した ${emptyBatch + 1} 番目` : "今の一覧"}）。ココフォリアでは送信欄の文が代わりに送られてしまうので、本文を入れるか削除してください。`, true);
+      exportStatus(t("本文が空のシナリオテキストがあります（{where}）。ココフォリアでは送信欄の文が代わりに送られてしまうので、本文を入れるか削除してください。",
+        { where: emptyBatch >= 0 ? t("確定した {n} 番目", { n: emptyBatch + 1 }) : t("今の一覧") }), true);
       return;
     }
     const btn = $("#exportZip");
     btn.disabled = true;
-    exportStatus("ZIP を作っています…");
+    exportStatus(t("ZIP を作っています…"));
     try {
       const bytes = new Map(); // image id -> Uint8Array, read once however many entries use it
       const big = new Set();
@@ -1200,7 +1215,7 @@
         if (!im) return null;
         if (im.kind === "url") return { kind: "url", url: im.url };
         const blob = blobs.get(im.id);
-        if (!blob) throw new Error(`画像「${im.name}」の中身が見つかりません。置き場で入れ直すか、使っている所の画像を変えてください。`);
+        if (!blob) throw new Error(t("画像「{name}」の中身が見つかりません。置き場で入れ直すか、使っている所の画像を変えてください。", { name: im.name }));
         if (!bytes.has(im.id)) bytes.set(im.id, new Uint8Array(await blob.arrayBuffer()));
         if (tooBig(im)) big.add(im.id);
         return { kind: "file", type: im.type || blob.type, bytes: bytes.get(im.id), key: im.id };
@@ -1212,11 +1227,11 @@
       });
       const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
       download(blob, `scenario-text-${stamp()}.zip`);
-      exportStatus(`書き出しました（シナリオテキスト ${all.length} 件・画像 ${files.length} 枚）。ココフォリアのルーム設定からインポートしてください。`
-        + (big.size ? `5 MB を超える画像が ${big.size} 枚あり、ココフォリアで読み込めないことがあります。` : ""), big.size > 0);
+      exportStatus(t("書き出しました（シナリオテキスト {n} 件・画像 {files} 枚）。ココフォリアのルーム設定からインポートしてください。", { n: all.length, files: files.length })
+        + (big.size ? t("5 MB を超える画像が {n} 枚あり、ココフォリアで読み込めないことがあります。", { n: big.size }) : ""), big.size > 0);
     } catch (err) {
       console.error(err);
-      exportStatus("ZIP を作れませんでした: " + err.message, true);
+      exportStatus(t("ZIP を作れませんでした: ") + err.message, true);
     } finally {
       btn.disabled = all.length === 0;
     }
@@ -1250,8 +1265,8 @@
     db = await openDb();
     await loadBlobs();
     await keepLifted(lifted);
-    if (lifted.length) status(`前の版で設定した画像 ${lifted.length} 枚を、画像の置き場に移しました。`);
-    else if (!db) status("このブラウザでは画像を保存できません。画像を使うときは「プロジェクトを保存」でファイルに残してください。", true);
+    if (lifted.length) status(t("前の版で設定した画像 {n} 枚を、画像の置き場に移しました。", { n: lifted.length }));
+    else if (!db) status(t("このブラウザでは画像を保存できません。画像を使うときは「プロジェクトを保存」でファイルに残してください。"), true);
     $("#script").value = state.script;
     syncOpts();
 
@@ -1271,7 +1286,7 @@
       pendingPick = null;
       addFiles(files).then(ids => { if (take) take(ids); if (ids.length) update(); });
     });
-    $("#addUrl").addEventListener("click", () => { if (addUrl()) { update(); status("URL の画像を置き場に入れました。"); } });
+    $("#addUrl").addEventListener("click", () => { if (addUrl()) { update(); status(t("URL の画像を置き場に入れました。")); } });
     $("#makeFromImages").addEventListener("click", makeFromImages);
     // preview: screen width choice, re-layout when the image loads or the card is resized
     $("#viewSize").value = viewSize;
@@ -1285,7 +1300,7 @@
     if (window.ResizeObserver) new ResizeObserver(() => { if ($("#stage").clientWidth !== lastStageWidth) layoutPreview(); }).observe($("#stage"));
     // A file dropped outside a drop area would make the browser leave the page to show it.
     window.addEventListener("dragover", ev => { if (hasFiles(ev)) ev.preventDefault(); });
-    window.addEventListener("drop", ev => { if (hasFiles(ev) && !ev.defaultPrevented) { ev.preventDefault(); status("画像は「画像の置き場」の枠か、話し手の画像の所にドロップしてください。", true); } });
+    window.addEventListener("drop", ev => { if (hasFiles(ev) && !ev.defaultPrevented) { ev.preventDefault(); status(t("画像は「画像の置き場」の枠か、話し手の画像の所にドロップしてください。"), true); } });
 
     $("#script").addEventListener("input", ev => { state.script = ev.target.value; update({ keepSpeakers: true }); });
     for (const el of document.querySelectorAll("[data-opt]")) {
@@ -1302,8 +1317,8 @@
       inputs[inputs.length - 1].focus();
     });
     $("#fillSample").addEventListener("click", () => {
-      const sample = SAMPLES[state.opts.mode] || SAMPLES.script;
-      if (state.script.trim() && !confirm("今の文章を例で置き換えますか？")) return;
+      const sample = t(SAMPLES[state.opts.mode] || SAMPLES.script);
+      if (state.script.trim() && !confirm(t("今の文章を例で置き換えますか？"))) return;
       state.script = sample;
       state.edited = null;
       $("#script").value = sample;
@@ -1319,9 +1334,9 @@
     $("#saveProject").addEventListener("click", async () => {
       try {
         download(new Blob([JSON.stringify(await projectData(), null, 1)], { type: "application/json" }), `scenario-text-${stamp()}.json`);
-        status("プロジェクトを保存しました（置き場の画像も入っています）。");
+        status(t("プロジェクトを保存しました（置き場の画像も入っています）。"));
       } catch (err) {
-        status("プロジェクトを保存できませんでした: " + err.message, true);
+        status(t("プロジェクトを保存できませんでした: ") + err.message, true);
       }
     });
     $("#loadProject").addEventListener("click", () => $("#projectFile").click());
@@ -1343,17 +1358,17 @@
         selected = -1;
         syncOpts();
         update();
-        status("プロジェクトを開きました。" + (lifted.length ? `画像 ${lifted.length} 枚を置き場に入れました。` : ""));
-      }).catch(() => status("プロジェクトファイルを読めませんでした。", true));
+        status(t("プロジェクトを開きました。") + (lifted.length ? t("画像 {n} 枚を置き場に入れました。", { n: lifted.length }) : ""));
+      }).catch(() => status(t("プロジェクトファイルを読めませんでした。"), true));
     });
     $("#resetAll").addEventListener("click", () => {
-      if (!confirm("話し手と文章、確定したものをすべて消して、最初からやり直しますか？（画像の置き場は残ります）")) return;
+      if (!confirm(t("話し手と文章、確定したものをすべて消して、最初からやり直しますか？（画像の置き場は残ります）"))) return;
       state = Object.assign(defaultState(), { images: state.images });
       $("#script").value = "";
       selected = -1;
       syncOpts();
       update();
-      status("最初からにしました。");
+      status(t("最初からにしました。"));
     });
 
     update();
